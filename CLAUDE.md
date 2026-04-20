@@ -3,32 +3,51 @@
 This file provides guidance to Claude Code when working with code in this
 repository.
 
-## Project Status
+## Project Overview
 
-This is a **base template repository** for developing and publishing Node.js
-modules to npm and GitHub Packages. It is not a working library — it contains
-placeholder source code in `src/` that should be replaced when starting a new
-project.
+Opinionated [Effect](https://effect.website/) library providing composable
+layers for XDG Base Directory support, from environment resolution through
+config file management to SQLite-backed caching and persistent state.
 
-The design documentation system is available via Claude Code skills and agents
-but no design docs exist yet in this template.
+### Services
 
-## Getting Started (After Cloning This Template)
+| Service | Purpose |
+| ------- | ------- |
+| XdgResolver | XDG env var resolution via Effect `Config` |
+| AppDirs | App-namespaced directory resolution with 4-level precedence |
+| ConfigFile | Pluggable config loading (codecs, resolvers, merge strategies) |
+| JsonSchemaExporter | JSON Schema generation with Tombi annotation support |
+| SqliteCache | KV cache with TTL, tags, PubSub observability |
+| SqliteState | Managed SQLite with user migrations |
 
-When starting a new project from this template, follow this lifecycle:
+### Dependencies
 
-1. **Rename the package** — Update `name` in `package.json` (e.g.,
-   `@spencerbeggs/my-new-lib`), update `repository.url` and `homepage`, and
-   update the `repo` field in `.changeset/config.json`
-2. **Replace placeholder code** — Delete the example `Foo`/`Bar` code in
-   `src/index.ts` and `src/index.test.ts`
-3. **Initialize design documentation** — Run `/design-init` to create your
-   first design document describing the library's architecture
-4. **Follow the design-first workflow** — Design docs → `/plan-create` →
-   implementation. This ensures Claude understands the full architecture before
-   writing code
-5. **Implement iteratively** — Use the plan to guide implementation, updating
-   design docs as the architecture evolves
+- **Runtime:** `effect`, `@effect/platform`, `smol-toml`
+- **Peer (required):** `@effect/platform`, `@effect/platform-node`, `effect`
+- **Peer (optional):** `@effect/sql`, `@effect/sql-sqlite-node` (only for
+  SqliteCache/SqliteState)
+
+### Source Layout
+
+```text
+src/
+  index.ts              # Single barrel export
+  codecs/               # Pluggable config file format parsers (JSON, TOML)
+  errors/               # Data.TaggedError types with Base exports
+  layers/               # Layer.Layer implementations (Live variants)
+  resolvers/            # Config file location strategies (5 built-in)
+  schemas/              # Effect Schema classes (data shapes)
+  services/             # Context.Tag service interfaces
+  strategies/           # Config resolution merge strategies
+```
+
+### Design Documentation
+
+**For architecture details, layer composition, and design rationale:**
+-> `@./.claude/design/xdg-effect/architecture.md`
+
+Load when working on service interfaces, layer wiring, adding new
+codecs/resolvers/strategies, or debugging dependency graph issues.
 
 ## Build Pipeline
 
@@ -75,7 +94,7 @@ Both targets publish with provenance attestation enabled.
 
 ## Savvy-Web Tool References
 
-This template depends on several `@savvy-web/*` packages. These are in active
+This project depends on several `@savvy-web/*` packages. These are in active
 development — if behavior seems unexpected, explore both the GitHub docs and the
 installed source.
 
