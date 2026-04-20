@@ -1,12 +1,12 @@
 {
-	"name": "@spencerbeggs/pnpm-module-template",
+	"name": "xdg-effect",
 	"version": "0.0.0",
 	"private": true,
-	"description": "A template repository for developing and deploying Node.js modules from a pnpm monorepo structure.",
-	"homepage": "https://github.com/spencerbeggs/pnpm-module-template#readme",
+	"description": "Helper library for defining and working with XDG_ aware config files written in Effect.",
+	"homepage": "https://github.com/spencerbeggs/xdg-effect#readme",
 	"repository": {
 		"type": "git",
-		"url": "https://github.com/spencerbeggs/pnpm-module-template.git"
+		"url": "https://github.com/spencerbeggs/xdg-effect.git"
 	},
 	"license": "MIT",
 	"author": {
@@ -70,7 +70,7 @@
 			{
 				"protocol": "npm",
 				"registry": "https://npm.pkg.github.com/",
-				"directory": "dist/npm",
+				"directory": "dist/github",
 				"access": "public",
 				"provenance": true
 			},
