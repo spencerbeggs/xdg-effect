@@ -1,7 +1,15 @@
 import { NodeLibraryBuilder } from "@savvy-web/rslib-builder";
 
 export default NodeLibraryBuilder.create({
-	externals: ["effect", "@effect/cli", "@effect/platform", "@effect/platform-node"],
+	externals: [
+		"effect",
+		"@effect/cli",
+		"@effect/platform",
+		"@effect/platform-node",
+		"@effect/sql",
+		"@effect/sql-sqlite-node",
+		"smol-toml",
+	],
 	apiModel: {
 		suppressWarnings: [{ messageId: "ae-forgotten-export", pattern: "_base" }],
 	},

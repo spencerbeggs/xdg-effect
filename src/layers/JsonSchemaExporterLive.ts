@@ -1,0 +1,130 @@
+import { FileSystem } from "@effect/platform";
+import { Effect, JSONSchema, Layer } from "effect";
+import { JsonSchemaError } from "../errors/JsonSchemaError.js";
+import { Unchanged, Written } from "../schemas/WriteResult.js";
+import type { JsonSchemaOutput, SchemaEntry } from "../services/JsonSchemaExporter.js";
+import { JsonSchemaExporter } from "../services/JsonSchemaExporter.js";
+
+const inlineRootRef = (schema: Record<string, unknown>, defName: string): Record<string, unknown> => {
+	const defs = schema.$defs as Record<string, Record<string, unknown>> | undefined;
+	if (!defs?.[defName]) return schema;
+
+	const rootDef = { ...defs[defName] };
+	const remainingDefs = { ...defs };
+	delete remainingDefs[defName];
+
+	const result: Record<string, unknown> = {
+		$schema: schema.$schema,
+		...rootDef,
+	};
+
+	if (Object.keys(remainingDefs).length > 0) {
+		result.$defs = remainingDefs;
+	}
+
+	return result;
+};
+
+const deepEqual = (a: unknown, b: unknown): boolean => {
+	if (a === b) return true;
+	if (typeof a !== typeof b) return false;
+	if (a === null || b === null) return false;
+	if (typeof a !== "object") return false;
+	if (Array.isArray(a) !== Array.isArray(b)) return false;
+	if (Array.isArray(a) && Array.isArray(b)) {
+		if (a.length !== b.length) return false;
+		return a.every((val, i) => deepEqual(val, b[i]));
+	}
+	const aObj = a as Record<string, unknown>;
+	const bObj = b as Record<string, unknown>;
+	const aKeys = Object.keys(aObj);
+	const bKeys = Object.keys(bObj);
+	if (aKeys.length !== bKeys.length) return false;
+	return aKeys.every((key) => deepEqual(aObj[key], bObj[key]));
+};
+
+const generateOne = (entry: SchemaEntry): Effect.Effect<JsonSchemaOutput, JsonSchemaError> =>
+	Effect.try({
+		try: () => {
+			const raw = JSONSchema.make(entry.schema) as unknown as Record<string, unknown>;
+			const inlined = inlineRootRef(raw, entry.rootDefName);
+			if (entry.annotations) {
+				for (const [key, value] of Object.entries(entry.annotations)) {
+					inlined[key] = value;
+				}
+			}
+			return { name: entry.name, schema: inlined };
+		},
+		catch: (error) =>
+			new JsonSchemaError({
+				operation: "generate",
+				name: entry.name,
+				reason: String(error),
+			}),
+	});
+
+export const JsonSchemaExporterLive: Layer.Layer<JsonSchemaExporter, never, FileSystem.FileSystem> = Layer.effect(
+	JsonSchemaExporter,
+	Effect.gen(function* () {
+		const fs = yield* FileSystem.FileSystem;
+
+		const writeSingle = (output: JsonSchemaOutput, path: string) =>
+			Effect.gen(function* () {
+				const content = `${JSON.stringify(output.schema, null, "\t")}\n`;
+
+				const exists = yield* fs.exists(path).pipe(Effect.catchAll(() => Effect.succeed(false)));
+				if (exists) {
+					const existing = yield* fs.readFileString(path).pipe(
+						Effect.mapError(
+							(e) =>
+								new JsonSchemaError({
+									operation: "write",
+									name: output.name,
+									reason: String(e),
+								}),
+						),
+					);
+					const existingParsed = yield* Effect.try({
+						try: () => JSON.parse(existing) as unknown,
+						catch: () =>
+							new JsonSchemaError({
+								operation: "write",
+								name: output.name,
+								reason: "failed to parse existing file",
+							}),
+					});
+					if (deepEqual(existingParsed, output.schema)) {
+						return Unchanged(path);
+					}
+				}
+
+				const lastSlash = path.lastIndexOf("/");
+				if (lastSlash > 0) {
+					const parentDir = path.slice(0, lastSlash);
+					yield* fs.makeDirectory(parentDir, { recursive: true }).pipe(Effect.catchAll(() => Effect.void));
+				}
+
+				yield* fs.writeFileString(path, content).pipe(
+					Effect.mapError(
+						(e) =>
+							new JsonSchemaError({
+								operation: "write",
+								name: output.name,
+								reason: String(e),
+							}),
+					),
+				);
+				return Written(path);
+			});
+
+		return JsonSchemaExporter.of({
+			generate: generateOne,
+
+			generateMany: (entries) => Effect.all(entries.map(generateOne)),
+
+			write: writeSingle,
+
+			writeMany: (outputs) => Effect.all(outputs.map(({ output, path }) => writeSingle(output, path))),
+		});
+	}),
+);
