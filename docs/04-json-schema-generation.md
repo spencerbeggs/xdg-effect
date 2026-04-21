@@ -74,7 +74,7 @@ The following program generates a JSON Schema from a config schema and writes it
 ```typescript
 import { NodeFileSystem } from "@effect/platform-node";
 import { Effect, Schema } from "effect";
-import { JsonSchemaExporter, JsonSchemaExporterLive } from "xdg-effect";
+import { JsonSchemaExporter } from "xdg-effect";
 
 const MyToolConfig = Schema.Struct({
   name: Schema.String,
@@ -108,13 +108,13 @@ const program = Effect.gen(function* () {
 
 Effect.runPromise(
   program.pipe(
-    Effect.provide(JsonSchemaExporterLive),
+    Effect.provide(JsonSchemaExporter.Live),
     Effect.provide(NodeFileSystem.layer),
   ),
 );
 ```
 
-`JsonSchemaExporterLive` requires only `FileSystem` from `@effect/platform`. It has no dependency on `XdgResolver` or `AppDirs` — it is independent of the XDG stack and is intended as a build-time utility, not a runtime service.
+`JsonSchemaExporter.Live` requires only `FileSystem` from `@effect/platform`. It has no dependency on `XdgResolver` or `AppDirs` — it is independent of the XDG stack and is intended as a build-time utility, not a runtime service.
 
 ## Tombi Integration
 
@@ -174,7 +174,7 @@ Create a `scripts/generate-schemas.ts` file in your project:
 ```typescript
 import { NodeFileSystem } from "@effect/platform-node";
 import { Effect, Schema } from "effect";
-import { JsonSchemaExporter, JsonSchemaExporterLive } from "xdg-effect";
+import { JsonSchemaExporter } from "xdg-effect";
 
 const MyToolConfig = Schema.Struct({
   name: Schema.String,
@@ -198,7 +198,7 @@ const program = Effect.gen(function* () {
 
 Effect.runPromise(
   program.pipe(
-    Effect.provide(JsonSchemaExporterLive),
+    Effect.provide(JsonSchemaExporter.Live),
     Effect.provide(NodeFileSystem.layer),
   ),
 );

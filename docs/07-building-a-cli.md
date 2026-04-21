@@ -102,8 +102,7 @@ Model this with a second `ConfigFile` service registered under its own tag. Use 
 ```typescript
 import { Schema } from "effect";
 import {
-  makeConfigFileTag,
-  makeConfigFileLive,
+  ConfigFile,
   TomlCodec,
   FirstMatch,
   XdgConfig,
@@ -119,11 +118,11 @@ const Credentials = Schema.Struct({
 });
 type Credentials = typeof Credentials.Type;
 
-const RepoSyncCredentials = makeConfigFileTag<Credentials>(
+const RepoSyncCredentials = ConfigFile.Tag<Credentials>(
   "repo-sync/Credentials",
 );
 
-const credentialsLayer = makeConfigFileLive({
+const credentialsLayer = ConfigFile.Live({
   tag: RepoSyncCredentials,
   schema: Credentials,
   codec: TomlCodec,
@@ -132,14 +131,14 @@ const credentialsLayer = makeConfigFileLive({
 });
 ```
 
-`makeConfigFileTag` takes a namespaced string `id`. Multiple `ConfigFile` services can coexist in the same layer graph as long as each has a distinct `id`. The credentials service is completely separate from the main config service — they have different schemas, different resolvers, and different tags.
+`ConfigFile.Tag` takes a namespaced string `id`. Multiple `ConfigFile` services can coexist in the same layer graph as long as each has a distinct `id`. The credentials service is completely separate from the main config service — they have different schemas, different resolvers, and different tags.
 
 ## Layer Composition Pattern
 
 With xdg-effect layers and app-specific service layers, compose in this order:
 
 1. **xdg-effect base** — `XdgConfigLive` (or `XdgLive`) provides `XdgResolver`, `AppDirs`, and `ConfigFile`
-2. **Credentials layer** — a second `makeConfigFileLive` for the credentials file
+2. **Credentials layer** — a second `ConfigFile.Live` for the credentials file
 3. **App service layers** — business logic services that depend on config and credentials
 
 ```typescript
@@ -161,7 +160,7 @@ const xdgLayer = XdgConfigLive({
 });
 
 // Credentials layer: needs AppDirs from xdgLayer
-const credsLayer = makeConfigFileLive({
+const credsLayer = ConfigFile.Live({
   tag: RepoSyncCredentials,
   schema: Credentials,
   codec: TomlCodec,
@@ -185,8 +184,7 @@ import { Command, Options } from "@effect/cli";
 import { Effect, Layer, Option, Schema } from "effect";
 import {
   AppDirsConfig,
-  makeConfigFileTag,
-  makeConfigFileLive,
+  ConfigFile,
   TomlCodec,
   FirstMatch,
   UpwardWalk,
@@ -204,7 +202,7 @@ const SyncConfig = Schema.Struct({
 });
 type SyncConfig = typeof SyncConfig.Type;
 
-const SyncConfigFile = makeConfigFileTag<SyncConfig>("repo-sync/Config");
+const SyncConfigFile = ConfigFile.Tag<SyncConfig>("repo-sync/Config");
 
 // -- Credentials Schema --
 const Credentials = Schema.Struct({
@@ -215,7 +213,7 @@ const Credentials = Schema.Struct({
 });
 type Credentials = typeof Credentials.Type;
 
-const RepoSyncCredentials = makeConfigFileTag<Credentials>(
+const RepoSyncCredentials = ConfigFile.Tag<Credentials>(
   "repo-sync/Credentials",
 );
 
@@ -292,7 +290,7 @@ const xdgLayer = XdgConfigLive({
 });
 
 // Credentials layer: resolves only from XDG config dir
-const credentialsLayer = makeConfigFileLive({
+const credentialsLayer = ConfigFile.Live({
   tag: RepoSyncCredentials,
   schema: Credentials,
   codec: TomlCodec,
@@ -312,7 +310,7 @@ NodeRuntime.runMain(program);
 
 ### Key points
 
-- `SyncConfigFile` and `RepoSyncCredentials` use different `makeConfigFileTag` ids, so both can live in the same layer graph simultaneously
+- `SyncConfigFile` and `RepoSyncCredentials` use different `ConfigFile.Tag` ids, so both can live in the same layer graph simultaneously
 - The credentials layer is provided `xdgLayer` so it can resolve `AppDirs` for `XdgConfig`
 - `Layer.mergeAll` combines both layers; `NodeContext.layer` is provided separately at the `Effect.provide` call so `@effect/platform-node` services are available to all commands
 - `NodeRuntime.runMain` handles fiber supervision, signal handling, and clean shutdown

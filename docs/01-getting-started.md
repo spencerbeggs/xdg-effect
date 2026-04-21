@@ -48,7 +48,7 @@ xdg-effect defines six services: `XdgResolver`, `AppDirs`, `ConfigFile`, `JsonSc
 
 A `Layer<A, E, R>` is a recipe for building a service. Layers are composable: you wire them together with `Layer.mergeAll` and `Layer.provide` to form the full environment your program needs. Because dependencies are tracked in types, the compiler tells you when something is missing.
 
-xdg-effect provides ready-made layers for each service (`XdgResolverLive`, `AppDirsLive`, etc.) and aggregate layers that bundle multiple services (`XdgLive`, `XdgConfigLive`, `XdgFullLive`). You pick the layers your program needs and provide them together.
+xdg-effect provides ready-made layers for each service (`XdgResolver.Live`, `AppDirs.Live(config)`, etc.) and aggregate layers that bundle multiple services (`XdgLive`, `XdgConfigLive`, `XdgFullLive`). Layer factories are statics on their service tags -- for example, `XdgResolver.Live` rather than a standalone `XdgResolverLive` export. You pick the layers your program needs and provide them together.
 
 ### Effect.gen and Effect.provide
 
@@ -62,9 +62,8 @@ xdg-effect provides ready-made layers for each service (`XdgResolverLive`, `AppD
 The following program resolves XDG paths and prints them to the console:
 
 ```typescript
-import { NodeFileSystem } from "@effect/platform-node";
 import { Effect, Option } from "effect";
-import { XdgResolver, XdgResolverLive } from "xdg-effect";
+import { XdgResolver } from "xdg-effect";
 
 const program = Effect.gen(function* () {
   const resolver = yield* XdgResolver;
@@ -83,7 +82,7 @@ const program = Effect.gen(function* () {
   console.log("All XDG paths:", paths);
 });
 
-Effect.runPromise(program.pipe(Effect.provide(XdgResolverLive)));
+Effect.runPromise(program.pipe(Effect.provide(XdgResolver.Live)));
 ```
 
 > **Effect concept: Option** — `Option` is Effect's way of representing a value that might not exist — like `T | null` but type-safe. `Option.isSome(x)` checks if a value is present, and `x.value` extracts it. See the [Effect docs on Option](https://effect.website/docs/data-types/option) for more.
@@ -98,7 +97,7 @@ All XDG paths: { home: '/Users/alice', configHome: { _tag: 'Some', value: '/User
 
 If `XDG_CONFIG_HOME` is not set, the `configHome` branch prints `(not set, will use default)` and `configHome` appears as `{ _tag: 'None' }` in the full paths output.
 
-`XdgResolverLive` reads XDG environment variables through Effect's `Config` module. `home` is required and fails with `XdgError` if `HOME` is not set — this is reflected in its type: `Effect<string, XdgError>`. The other paths (`configHome`, `dataHome`, etc.) return `Option<string>` because the XDG environment variables are optional; when unset, the library returns `Option.none()` and your application applies the XDG default path rules itself.
+`XdgResolver.Live` reads XDG environment variables through Effect's `Config` module. `home` is required and fails with `XdgError` if `HOME` is not set -- this is reflected in its type: `Effect<string, XdgError>`. The other paths (`configHome`, `dataHome`, etc.) return `Option<string>` because the XDG environment variables are optional; when unset, the library returns `Option.none()` and your application applies the XDG default path rules itself.
 
 ## What's Next
 

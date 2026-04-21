@@ -21,17 +21,17 @@ Install the optional peer dependencies:
 pnpm add @effect/sql @effect/sql-sqlite-node
 ```
 
-Create a `SqlClient` layer using `@effect/sql-sqlite-node`, then provide it to `makeSqliteStateLive`:
+Create a `SqlClient` layer using `@effect/sql-sqlite-node`, then provide it to `SqliteState.Live`:
 
 ```typescript
 import { SqliteClient } from "@effect/sql-sqlite-node";
-import { makeSqliteStateLive } from "xdg-effect";
+import { SqliteState } from "xdg-effect";
 import type { StateMigration } from "xdg-effect";
 
 const migrations: ReadonlyArray<StateMigration> = [];
 
 const dbLayer = SqliteClient.layer({ filename: "/home/user/.local/share/my-tool/state.db" });
-const stateLayer = makeSqliteStateLive({ migrations });
+const stateLayer = SqliteState.Live({ migrations });
 ```
 
 For an XDG-compliant database location, use the `AppDirs` service to resolve the data directory at runtime:
@@ -41,7 +41,7 @@ import { NodeFileSystem } from "@effect/platform-node";
 import { Path } from "@effect/platform";
 import { SqliteClient } from "@effect/sql-sqlite-node";
 import { Effect, Layer } from "effect";
-import { AppDirs, AppDirsConfig, makeSqliteStateLive, XdgLive } from "xdg-effect";
+import { AppDirs, AppDirsConfig, SqliteState, XdgLive } from "xdg-effect";
 import type { StateMigration } from "xdg-effect";
 
 const migrations: ReadonlyArray<StateMigration> = [];
@@ -56,7 +56,7 @@ const dbLayer = Layer.unwrapEffect(
 );
 
 const appLayer = XdgLive(new AppDirsConfig({ namespace: "my-tool" }));
-const stateLayer = makeSqliteStateLive({ migrations }).pipe(
+const stateLayer = SqliteState.Live({ migrations }).pipe(
   Layer.provide(dbLayer),
   Layer.provide(appLayer),
   Layer.provide(NodeFileSystem.layer),
@@ -83,7 +83,7 @@ interface StateMigration {
 - Applied migrations are tracked in a `_xdg_migrations` table created automatically
 - `down` is optional; without it, rollback skips that migration
 
-Define your migrations as a `ReadonlyArray<StateMigration>` and pass them to `makeSqliteStateLive`:
+Define your migrations as a `ReadonlyArray<StateMigration>` and pass them to `SqliteState.Live`:
 
 ```typescript
 import type { SqlClient } from "@effect/sql";
@@ -174,7 +174,6 @@ import { SqliteClient } from "@effect/sql-sqlite-node";
 import { Effect, Option } from "effect";
 import {
   SqliteState,
-  makeSqliteStateLive,
   type StateMigration,
 } from "xdg-effect";
 
@@ -232,7 +231,7 @@ const program = Effect.gen(function* () {
 });
 
 const dbLayer = SqliteClient.layer({ filename: ":memory:" });
-const stateLayer = makeSqliteStateLive({ migrations });
+const stateLayer = SqliteState.Live({ migrations });
 
 Effect.runPromise(
   program.pipe(
@@ -247,7 +246,7 @@ The example uses `:memory:` for simplicity. In production, use `AppDirs.data` to
 
 ## Using with XdgFullLive
 
-When using `XdgFullLive`, both `SqliteCache` and `SqliteState` share the same `SqlClient` instance — meaning they use the same database file. If you need separate databases (e.g., cache in `$XDG_CACHE_HOME` and state in `$XDG_DATA_HOME`), compose `makeSqliteCacheLive()` and `makeSqliteStateLive()` separately with different `SqlClient` layers instead of using `XdgFullLive`.
+When using `XdgFullLive`, both `SqliteCache` and `SqliteState` share the same `SqlClient` instance — meaning they use the same database file. If you need separate databases (e.g., cache in `$XDG_CACHE_HOME` and state in `$XDG_DATA_HOME`), compose `SqliteCache.Live()` and `SqliteState.Live()` separately with different `SqlClient` layers instead of using `XdgFullLive`.
 
 ---
 

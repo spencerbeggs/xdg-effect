@@ -1,22 +1,21 @@
 import type { FileSystem } from "@effect/platform";
 import { Layer } from "effect";
 import type { AppDirsConfig } from "../schemas/AppDirsConfig.js";
-import { AppDirsLive } from "./AppDirsLive.js";
-import { XdgResolverLive } from "./XdgResolverLive.js";
+import { AppDirs } from "../services/AppDirs.js";
+import { XdgResolver } from "../services/XdgResolver.js";
 
 /**
  * Aggregate layer providing {@link XdgResolver} and {@link AppDirs}.
  *
  * @remarks
- * Composes `XdgResolverLive` and `AppDirsLive` into a single layer.
+ * Composes `XdgResolver.Live` and `AppDirs.Live` into a single layer.
  * Requires `FileSystem` from `@effect/platform`.
  *
  * @public
  */
 export const XdgLive = (
 	config: typeof AppDirsConfig.Type,
-): Layer.Layer<
-	import("../services/XdgResolver.js").XdgResolver | import("../services/AppDirs.js").AppDirs,
-	never,
-	FileSystem.FileSystem
-> => Layer.mergeAll(XdgResolverLive, AppDirsLive(config).pipe(Layer.provide(XdgResolverLive)));
+): Layer.Layer<XdgResolver | AppDirs, never, FileSystem.FileSystem> => {
+	const resolver = XdgResolver.Live;
+	return Layer.mergeAll(resolver, AppDirs.Live(config).pipe(Layer.provide(resolver)));
+};

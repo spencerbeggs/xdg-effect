@@ -3,6 +3,7 @@ import { Effect, Layer, Option } from "effect";
 import { AppDirsError } from "../errors/AppDirsError.js";
 import type { AppDirsConfig } from "../schemas/AppDirsConfig.js";
 import { ResolvedAppDirs } from "../schemas/ResolvedAppDirs.js";
+// biome-ignore lint/suspicious/noImportCycles: layer intentionally co-locates with its service tag
 import { AppDirs } from "../services/AppDirs.js";
 import { XdgResolver } from "../services/XdgResolver.js";
 
@@ -51,7 +52,7 @@ const getDirOverride = (
 	dirName: DirName | "runtime",
 ): Option.Option<string> => Option.flatMap(dirs, (d) => d[dirName]);
 
-export const AppDirsLive = (
+export const AppDirsLiveImpl = (
 	config: typeof AppDirsConfig.Type,
 ): Layer.Layer<AppDirs, never, XdgResolver | FileSystem.FileSystem> =>
 	Layer.effect(
@@ -125,12 +126,25 @@ export const AppDirsLive = (
 
 			const resolveSingleDir = (dirName: DirName) => Effect.map(resolveAllDirs, (resolved) => resolved[dirName]);
 
+			const ensureSingleDir = (dirName: DirName) =>
+				Effect.gen(function* () {
+					const dir = yield* resolveSingleDir(dirName);
+					yield* fs
+						.makeDirectory(dir, { recursive: true })
+						.pipe(Effect.catchAll((e) => Effect.fail(new AppDirsError({ directory: dirName, reason: String(e) }))));
+					return dir;
+				});
+
 			return AppDirs.of({
 				config: resolveSingleDir("config"),
 				data: resolveSingleDir("data"),
 				cache: resolveSingleDir("cache"),
 				state: resolveSingleDir("state"),
 				runtime: Effect.map(resolveAllDirs, (resolved) => resolved.runtime),
+				ensureConfig: ensureSingleDir("config"),
+				ensureData: ensureSingleDir("data"),
+				ensureCache: ensureSingleDir("cache"),
+				ensureState: ensureSingleDir("state"),
 				resolveAll: resolveAllDirs,
 				ensure: Effect.gen(function* () {
 					const resolved = yield* resolveAllDirs;

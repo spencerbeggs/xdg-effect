@@ -2,7 +2,6 @@ import { mkdirSync, rmSync } from "node:fs";
 import { SqliteClient } from "@effect/sql-sqlite-node";
 import { Duration, Effect, Layer, Option, PubSub, Queue } from "effect";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { makeSqliteCacheLive } from "../src/layers/SqliteCacheLive.js";
 import type { CacheEvent } from "../src/schemas/CacheEvent.js";
 import { SqliteCache } from "../src/services/SqliteCache.js";
 
@@ -11,7 +10,7 @@ const cacheDir = `${tmpDir}/cache`;
 
 const makeLayers = () => {
 	const SqliteLive = SqliteClient.layer({ filename: `${cacheDir}/cache.db` });
-	const CacheLayer = makeSqliteCacheLive();
+	const CacheLayer = SqliteCache.Live();
 	return Layer.provide(CacheLayer, SqliteLive);
 };
 
@@ -148,5 +147,24 @@ describe("SqliteCache", () => {
 		expect(tags).toContain("Set");
 		expect(tags).toContain("Hit");
 		expect(tags).toContain("Miss");
+	});
+});
+
+describe("SqliteCache.Test", () => {
+	it("provides in-memory cache", async () => {
+		const result = await Effect.runPromise(
+			Effect.provide(
+				Effect.gen(function* () {
+					const cache = yield* SqliteCache;
+					yield* cache.set({
+						key: "test-key",
+						value: new TextEncoder().encode("test-value"),
+					});
+					return yield* cache.has("test-key");
+				}),
+				SqliteCache.Test(),
+			),
+		);
+		expect(result).toBe(true);
 	});
 });

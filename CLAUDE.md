@@ -14,11 +14,41 @@ config file management to SQLite-backed caching and persistent state.
 | Service | Purpose |
 | ------- | ------- |
 | XdgResolver | XDG env var resolution via Effect `Config` |
-| AppDirs | App-namespaced directory resolution with 4-level precedence |
-| ConfigFile | Pluggable config loading (codecs, resolvers, merge strategies) |
+| AppDirs | App-namespaced directory resolution with 4-level precedence; `ensure*` methods create directories on demand |
+| ConfigFile | Pluggable config loading with `loadOrDefault`, `save`, `update` convenience methods |
 | JsonSchemaExporter | JSON Schema generation with Tombi annotation support |
 | SqliteCache | KV cache with TTL, tags, PubSub observability |
 | SqliteState | Managed SQLite with user migrations |
+
+### Layer Access Pattern
+
+Layer factories live as **static properties on service tags**, not as
+standalone exports. Every service also exposes a `.Test` static for
+scoped test layers with temp directories.
+
+```typescript
+// Live layers
+XdgResolver.Live                        // Layer.Layer<XdgResolver>
+AppDirs.Live(config)                    // Layer.Layer<AppDirs, never, XdgResolver | FileSystem>
+ConfigFile.Tag<A>(id)                   // Context.GenericTag for parameterized service
+ConfigFile.Live<A>(options)             // Layer.Layer<ConfigFileService<A>, never, FileSystem>
+JsonSchemaExporter.Live                 // Layer.Layer<JsonSchemaExporter, never, FileSystem>
+SqliteCache.Live()                      // Layer.Layer<SqliteCache, never, SqlClient>
+SqliteState.Live({ migrations })        // Layer.Layer<SqliteState, never, SqlClient>
+
+// Test layers (all require Scope)
+XdgResolver.Test(options?)              // Scoped temp dirs, no real env vars
+AppDirs.Test({ namespace, ... })        // Includes XdgResolver.Test + NodeFileSystem
+ConfigFile.Test<A>(options)             // Pre-populated temp directory
+JsonSchemaExporter.Test                 // Scoped temp directory
+SqliteCache.Test()                      // In-memory SQLite
+SqliteState.Test({ migrations })        // In-memory SQLite
+```
+
+**Removed exports (pre-0.2):** `AppDirsLive`, `XdgResolverLive`,
+`JsonSchemaExporterLive`, `makeSqliteCacheLive`, `makeSqliteStateLive`,
+`makeConfigFileTag`, `makeConfigFileLive` -- use the service tag statics
+above instead.
 
 ### Dependencies
 
@@ -34,10 +64,10 @@ src/
   index.ts              # Single barrel export
   codecs/               # Pluggable config file format parsers (JSON, TOML)
   errors/               # Data.TaggedError types with Base exports
-  layers/               # Layer.Layer implementations (Live variants)
-  resolvers/            # Config file location strategies (5 built-in)
+  layers/               # Layer implementations (*Live.ts and *Test.ts)
+  resolvers/            # Config file location strategies (5 built-in + XdgSavePath)
   schemas/              # Effect Schema classes (data shapes)
-  services/             # Context.Tag service interfaces
+  services/             # Context.Tag service interfaces (with .Live/.Test statics)
   strategies/           # Config resolution merge strategies
 ```
 

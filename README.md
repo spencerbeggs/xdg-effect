@@ -27,7 +27,7 @@ import { NodeFileSystem } from "@effect/platform-node";
 import { Effect, Schema } from "effect";
 import {
   AppDirsConfig,
-  makeConfigFileTag,
+  ConfigFile,
   TomlCodec,
   FirstMatch,
   XdgConfig,
@@ -44,7 +44,7 @@ const MyConfig = Schema.Struct({
 type MyConfig = typeof MyConfig.Type;
 
 // 2. Create a typed service tag
-const MyConfigFile = makeConfigFileTag<MyConfig>("my-tool/Config");
+const MyConfigFile = ConfigFile.Tag<MyConfig>("my-tool/Config");
 
 // 3. Compose layers
 const layer = XdgConfigLive({
@@ -89,7 +89,7 @@ pnpm add @effect/sql @effect/sql-sqlite-node
 
 | Layer | Services Provided | Requirements | Use When |
 | ----- | ----------------- | ------------ | -------- |
-| `XdgResolverLive` | `XdgResolver` | (none) | You only need raw XDG env vars |
+| `XdgResolver.Live` | `XdgResolver` | (none) | You only need raw XDG env vars |
 | `XdgLive(config)` | `XdgResolver`, `AppDirs` | `FileSystem` | You need app-namespaced directories |
 | `XdgConfigLive(options)` | `XdgResolver`, `AppDirs`, `ConfigFile` | `FileSystem` | You need config file loading |
 | `XdgFullLive(options)` | `XdgResolver`, `AppDirs`, `ConfigFile`, `SqliteCache`, `SqliteState` | `FileSystem`, `SqlClient` | You need the full stack |
@@ -115,7 +115,7 @@ pnpm add @effect/sql @effect/sql-sqlite-node
 | ------ | ---- | ----- |
 | [`XdgResolver`](./docs/02-resolving-xdg-paths.md) | `Context.Tag` | Resolving XDG Paths |
 | [`AppDirs`](./docs/02-resolving-xdg-paths.md) | `Context.Tag` | Resolving XDG Paths |
-| [`makeConfigFileTag`](./docs/03-config-files.md) | function | Config Files |
+| [`ConfigFile.Tag`](./docs/03-config-files.md) | factory | Config Files |
 | [`JsonSchemaExporter`](./docs/04-json-schema-generation.md) | `Context.Tag` | JSON Schema Generation |
 | [`SqliteCache`](./docs/05-sqlite-cache.md) | `Context.Tag` | SQLite Cache |
 | [`SqliteState`](./docs/06-sqlite-state.md) | `Context.Tag` | SQLite State |
@@ -124,14 +124,14 @@ pnpm add @effect/sql @effect/sql-sqlite-node
 
 | Export | Kind | Guide |
 | ------ | ---- | ----- |
-| [`XdgResolverLive`](./docs/02-resolving-xdg-paths.md) | `Layer` | Resolving XDG Paths |
-| [`AppDirsLive`](./docs/02-resolving-xdg-paths.md) | `Layer` | Resolving XDG Paths |
+| [`XdgResolver.Live`](./docs/02-resolving-xdg-paths.md) | `Layer` | Resolving XDG Paths |
+| [`AppDirs.Live`](./docs/02-resolving-xdg-paths.md) | `Layer` | Resolving XDG Paths |
 | [`XdgLive`](./docs/02-resolving-xdg-paths.md) | `Layer` | Resolving XDG Paths |
-| [`makeConfigFileLive`](./docs/03-config-files.md) | function | Config Files |
+| [`ConfigFile.Live`](./docs/03-config-files.md) | factory | Config Files |
 | [`XdgConfigLive`](./docs/03-config-files.md) | function | Config Files |
-| [`JsonSchemaExporterLive`](./docs/04-json-schema-generation.md) | `Layer` | JSON Schema Generation |
-| [`makeSqliteCacheLive`](./docs/05-sqlite-cache.md) | function | SQLite Cache |
-| [`makeSqliteStateLive`](./docs/06-sqlite-state.md) | function | SQLite State |
+| [`JsonSchemaExporter.Live`](./docs/04-json-schema-generation.md) | `Layer` | JSON Schema Generation |
+| [`SqliteCache.Live`](./docs/05-sqlite-cache.md) | factory | SQLite Cache |
+| [`SqliteState.Live`](./docs/06-sqlite-state.md) | factory | SQLite State |
 | [`XdgFullLive`](./docs/01-getting-started.md) | function | Getting Started |
 
 ### Codecs
@@ -150,6 +150,7 @@ pnpm add @effect/sql @effect/sql-sqlite-node
 | [`UpwardWalk`](./docs/03-config-files.md) | `ConfigResolver` | Config Files |
 | [`WorkspaceRoot`](./docs/03-config-files.md) | `ConfigResolver` | Config Files |
 | [`XdgConfig`](./docs/03-config-files.md) | `ConfigResolver` | Config Files |
+| [`XdgSavePath`](./docs/03-config-files.md) | helper | Config Files |
 
 ### Strategies
 

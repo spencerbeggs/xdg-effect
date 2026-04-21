@@ -108,13 +108,38 @@ XdgConfig({ filename: "config.toml" })
 // resolves to e.g. /home/user/.config/my-tool/config.toml
 ```
 
-> **Important:** When using `XdgConfig` in a resolver chain, the `AppDirs` service must be available in the layer graph. This is handled automatically by `XdgConfigLive` (which composes `XdgLive` + `ConfigFileLive`), but if you use `makeConfigFileLive` standalone with an `XdgConfig` resolver, you must also provide `AppDirs` via `XdgLive` or `AppDirsLive`.
+> **Important:** When using `XdgConfig` in a resolver chain, the `AppDirs` service must be available in the layer graph. This is handled automatically by `XdgConfigLive` (which composes `XdgLive` + `ConfigFile.Live`), but if you use `ConfigFile.Live` standalone with an `XdgConfig` resolver, you must also provide `AppDirs` via `XdgLive` or `AppDirs.Live(config)`.
 
 **WorkspaceRoot({ filename, subpath?, cwd? })** — Walks up from `cwd` looking for a monorepo workspace root, identified by a `pnpm-workspace.yaml` file or a `package.json` with a `workspaces` field. When found, checks for `filename` at the root (optionally under `subpath`). Use this for config shared across all packages in a monorepo.
 
 ```typescript
-WorkspaceRoot({ filename: "my-tool.config.toml" })
-WorkspaceRoot({ filename: "config.toml", subpath: ".config/my-tool" })
+import { WorkspaceRoot } from "xdg-effect";
+
+// Finds monorepo root (pnpm-workspace.yaml or package.json with workspaces)
+// then checks for a config file there
+const resolver = WorkspaceRoot({ filename: ".myapprc.json" });
+
+// With a subpath — looks in a subdirectory of the workspace root
+const resolver2 = WorkspaceRoot({ filename: "config.toml", subpath: ".config" });
+```
+
+### XdgSavePath helper
+
+**XdgSavePath(filename: string)** is not a resolver — it is a helper Effect that determines **where to write** a config file, not where to read it. The `resolvers` array handles reading; `XdgSavePath` handles writing. It combines the `AppDirs` config directory with the provided filename and is passed as the `defaultPath` option in `ConfigFileOptions` to enable the `save` and `update` methods.
+
+Return type:
+
+```typescript
+Effect.Effect<string, ConfigError, AppDirs>
+```
+
+It requires `AppDirs` in the environment and can fail with `ConfigError` if the directory cannot be resolved.
+
+```typescript
+import { XdgSavePath } from "xdg-effect";
+
+// Resolves to e.g. /home/user/.config/my-tool/config.toml
+const defaultPath = XdgSavePath("config.toml");
 ```
 
 ## Strategies
@@ -189,18 +214,22 @@ const StrictFirst: ConfigWalkStrategy<any> = {
 
 ## Putting It Together
 
-### makeConfigFileTag
+### ConfigFile.Tag
 
 ```typescript
-const makeConfigFileTag = <A>(id: string) =>
-  Context.GenericTag<ConfigFileService<A>>(`xdg-effect/ConfigFile/${id}`)
+ConfigFile.Tag<A>(id: string)
+// equivalent to: Context.GenericTag<ConfigFileService<A>>(`xdg-effect/ConfigFile/${id}`)
 ```
 
-Creates a unique `Context.Tag` for a `ConfigFileService<A>`. This factory is necessary because Effect's `Context.Tag` does not support type parameters directly — `Context.GenericTag` is the internal mechanism that allows each config schema to have its own uniquely-keyed tag. Multiple `ConfigFile` services can coexist in the same layer graph as long as each has a distinct `id`.
+Creates a unique `Context.Tag` for a `ConfigFileService<A>`. This factory is necessary because Effect's `Context.Tag` does not support type parameters directly -- `Context.GenericTag` is the internal mechanism that allows each config schema to have its own uniquely-keyed tag. Multiple `ConfigFile` services can coexist in the same layer graph as long as each has a distinct `id`.
 
-### makeConfigFileLive
+### ConfigFile.Live
 
 Creates the live layer from a `ConfigFileOptions` object:
+
+```typescript
+ConfigFile.Live<A>(options: ConfigFileOptions<A>)
+```
 
 ```typescript
 interface ConfigFileOptions<A> {
@@ -209,7 +238,23 @@ interface ConfigFileOptions<A> {
   readonly codec: ConfigCodec;
   readonly strategy: ConfigWalkStrategy<A>;
   readonly resolvers: ReadonlyArray<ConfigResolver<any>>;
+  readonly defaultPath?: Effect<string, ConfigError, any>;
 }
+```
+
+The optional `defaultPath` field is an Effect that resolves to a file path. When provided, it enables the `save` and `update` methods on the resulting service. Use `XdgSavePath(filename)` to resolve to the XDG config directory:
+
+```typescript
+import { XdgSavePath } from "xdg-effect";
+
+ConfigFile.Live({
+  tag: MyConfigFile,
+  schema: MyConfig,
+  codec: TomlCodec,
+  strategy: FirstMatch,
+  resolvers: [XdgConfig({ filename: "config.toml" })],
+  defaultPath: XdgSavePath("config.toml"),
+});
 ```
 
 ### ConfigFileService
@@ -220,17 +265,23 @@ interface ConfigFileService<A> {
   readonly loadFrom: (path: string) => Effect<A, ConfigError>;
   readonly discover: Effect<ReadonlyArray<ConfigSource<A>>, ConfigError>;
   readonly write: (value: A, path: string) => Effect<void, ConfigError>;
+  readonly loadOrDefault: (defaultValue: A) => Effect<A, ConfigError>;
+  readonly save: (value: A) => Effect<string, ConfigError>;
+  readonly update: (fn: (current: A) => A, defaultValue?: A) => Effect<A, ConfigError>;
 }
 ```
 
-- **`load`** — runs the full resolver chain, parses each found file, validates against the schema, and applies the strategy to produce a single merged value.
-- **`loadFrom`** — bypasses the resolver chain and loads directly from a known path. Useful when you already know where the file is.
-- **`discover`** — runs the resolver chain and returns all found sources without merging. Useful for inspecting which files contribute to the final config.
-- **`write`** — encodes the value through the schema, serializes it with the codec, and writes the result to the given path.
+- **`load`** -- runs the full resolver chain, parses each found file, validates against the schema, and applies the strategy to produce a single merged value.
+- **`loadFrom`** -- bypasses the resolver chain and loads directly from a known path. Useful when you already know where the file is.
+- **`discover`** -- runs the resolver chain and returns all found sources without merging. Useful for inspecting which files contribute to the final config.
+- **`write`** -- encodes the value through the schema, serializes it with the codec, and writes the result to the given path.
+- **`loadOrDefault`** -- runs the resolver chain; if no sources are found, returns the provided default value instead of failing with a `ConfigError`.
+- **`save`** -- encodes the value and writes it to the `defaultPath`. Fails with `ConfigError` if no `defaultPath` was configured. Creates parent directories automatically. Returns the path that was written to.
+- **`update`** -- loads the current config (using `loadOrDefault` if a `defaultValue` is provided, otherwise `load`), applies the transformation function `fn`, then `save`s the result. Returns the updated value.
 
 ### XdgConfigLive
 
-`XdgConfigLive` is an aggregate layer that composes `XdgLive` (providing `XdgResolver` + `AppDirs`) with `makeConfigFileLive` (providing `ConfigFileService<A>`). It accepts a single options object and requires only `FileSystem`:
+`XdgConfigLive` is an aggregate layer that composes `XdgLive` (providing `XdgResolver` + `AppDirs`) with `ConfigFile.Live` (providing `ConfigFileService<A>`). It accepts a single options object and requires only `FileSystem`:
 
 ```typescript
 XdgConfigLive({ app: AppDirsConfig, config: ConfigFileOptions<A> })
@@ -245,7 +296,7 @@ import { NodeFileSystem } from "@effect/platform-node";
 import { Effect, Schema } from "effect";
 import {
   AppDirsConfig,
-  makeConfigFileTag,
+  ConfigFile,
   TomlCodec,
   LayeredMerge,
   UpwardWalk,
@@ -266,7 +317,7 @@ const MyToolConfig = Schema.Struct({
 type MyToolConfig = typeof MyToolConfig.Type;
 
 // Typed service tag
-const MyToolConfigFile = makeConfigFileTag<MyToolConfig>("my-tool/Config");
+const MyToolConfigFile = ConfigFile.Tag<MyToolConfig>("my-tool/Config");
 
 // Layer with 3-resolver chain (highest to lowest priority)
 const layer = XdgConfigLive({
@@ -322,6 +373,70 @@ const program = Effect.gen(function* () {
 The value is first encoded through the schema (applying any transforms defined there), then serialized by the codec, then written to the given path. If the directory does not exist, the write will fail with a `ConfigError`; create the directory first using `appDirs.ensure` from the `AppDirs` service if needed.
 
 **Note:** `write` writes to a single specified path. If you used `LayeredMerge` to load from multiple sources, `write` does not update all discovered sources — it only writes to the path you provide.
+
+## Runnable example: save and update
+
+The following program wires `defaultPath` via `XdgSavePath` to enable `save` and `update`:
+
+```typescript
+import { NodeFileSystem } from "@effect/platform-node";
+import { Effect, Schema } from "effect";
+import {
+ AppDirsConfig,
+ ConfigFile,
+ FirstMatch,
+ TomlCodec,
+ XdgConfig,
+ XdgConfigLive,
+ XdgSavePath,
+} from "xdg-effect";
+
+// Define config schema and typed service tag
+const AppConfigSchema = Schema.Struct({
+ name: Schema.String,
+ port: Schema.optional(Schema.Number),
+});
+type AppConfig = typeof AppConfigSchema.Type;
+const AppConfig = ConfigFile.Tag<AppConfig>("myapp/Config");
+
+// Wire layer with defaultPath so save/update are available
+const layer = XdgConfigLive({
+ app: new AppDirsConfig({ namespace: "myapp" }),
+ config: {
+  tag: AppConfig,
+  schema: AppConfigSchema,
+  codec: TomlCodec,
+  strategy: FirstMatch,
+  resolvers: [XdgConfig({ filename: "myapp.toml" })],
+  defaultPath: XdgSavePath("myapp.toml"),
+ },
+});
+
+const program = Effect.gen(function* () {
+ const config = yield* AppConfig;
+
+ // Load with fallback if file doesn't exist yet
+ const current = yield* config.loadOrDefault({ name: "myapp" });
+ console.log("Current config:", current);
+
+ // Update atomically: load → transform → save
+ const updated = yield* config.update(
+  (c) => ({ ...c, port: 8080 }),
+  { name: "myapp" },
+ );
+ console.log("Updated config:", updated);
+
+ // Or save a value directly; returns the path written to
+ const savedPath = yield* config.save({ name: "myapp", port: 3000 });
+ console.log("Saved to:", savedPath);
+});
+
+Effect.runPromise(
+ program.pipe(Effect.provide(layer), Effect.provide(NodeFileSystem.layer)),
+);
+```
+
+`XdgSavePath("myapp.toml")` resolves to the XDG config directory for the application namespace (e.g., `/home/user/.config/myapp/myapp.toml`) and creates any missing parent directories automatically. If `defaultPath` is omitted from `ConfigFile.Live`, calling `save` or `update` fails with a `ConfigError`.
 
 ---
 

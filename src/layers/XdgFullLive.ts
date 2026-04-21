@@ -2,10 +2,13 @@ import type { FileSystem } from "@effect/platform";
 import type { SqlClient } from "@effect/sql";
 import { Layer } from "effect";
 import type { AppDirsConfig } from "../schemas/AppDirsConfig.js";
+import type { AppDirs } from "../services/AppDirs.js";
+import type { ConfigFileService } from "../services/ConfigFile.js";
+import { SqliteCache } from "../services/SqliteCache.js";
 import type { StateMigration } from "../services/SqliteState.js";
+import { SqliteState } from "../services/SqliteState.js";
+import type { XdgResolver } from "../services/XdgResolver.js";
 import type { ConfigFileOptions } from "./ConfigFileLive.js";
-import { makeSqliteCacheLive } from "./SqliteCacheLive.js";
-import { makeSqliteStateLive } from "./SqliteStateLive.js";
 import { XdgConfigLive } from "./XdgConfigLive.js";
 
 /**
@@ -25,7 +28,7 @@ export interface XdgFullLiveOptions<A> {
  * {@link SqliteCache}, and {@link SqliteState}.
  *
  * @remarks
- * Composes `XdgConfigLive` with `makeSqliteCacheLive` and `makeSqliteStateLive`.
+ * Composes `XdgConfigLive` with `SqliteCache.Live` and `SqliteState.Live`.
  * Requires `FileSystem` from `@effect/platform` and `SqlClient` from `@effect/sql`.
  *
  * Both `SqliteCache` and `SqliteState` share the same `SqlClient` instance.
@@ -37,16 +40,12 @@ export interface XdgFullLiveOptions<A> {
 export const XdgFullLive = <A>(
 	options: XdgFullLiveOptions<A>,
 ): Layer.Layer<
-	| import("../services/XdgResolver.js").XdgResolver
-	| import("../services/AppDirs.js").AppDirs
-	| import("../services/ConfigFile.js").ConfigFileService<A>
-	| import("../services/SqliteCache.js").SqliteCache
-	| import("../services/SqliteState.js").SqliteState,
+	XdgResolver | AppDirs | ConfigFileService<A> | SqliteCache | SqliteState,
 	never,
 	FileSystem.FileSystem | SqlClient.SqlClient
 > =>
 	Layer.mergeAll(
 		XdgConfigLive({ app: options.app, config: options.config }),
-		makeSqliteCacheLive(),
-		makeSqliteStateLive({ migrations: options.migrations }),
+		SqliteCache.Live(),
+		SqliteState.Live({ migrations: options.migrations }),
 	);

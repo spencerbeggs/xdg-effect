@@ -1,8 +1,11 @@
 import type { FileSystem } from "@effect/platform";
 import { Layer } from "effect";
 import type { AppDirsConfig } from "../schemas/AppDirsConfig.js";
+import type { AppDirs } from "../services/AppDirs.js";
+import type { ConfigFileService } from "../services/ConfigFile.js";
+import { ConfigFile } from "../services/ConfigFile.js";
+import type { XdgResolver } from "../services/XdgResolver.js";
 import type { ConfigFileOptions } from "./ConfigFileLive.js";
-import { makeConfigFileLive } from "./ConfigFileLive.js";
 import { XdgLive } from "./XdgLive.js";
 
 /**
@@ -21,17 +24,12 @@ export interface XdgConfigLiveOptions<A> {
  *
  * @remarks
  * Composes `XdgLive` (which provides XdgResolver + AppDirs) with
- * `makeConfigFileLive` for config file support. Requires `FileSystem`
+ * `ConfigFile.Live` for config file support. Requires `FileSystem`
  * from `@effect/platform`.
  *
  * @public
  */
 export const XdgConfigLive = <A>(
 	options: XdgConfigLiveOptions<A>,
-): Layer.Layer<
-	| import("../services/XdgResolver.js").XdgResolver
-	| import("../services/AppDirs.js").AppDirs
-	| import("../services/ConfigFile.js").ConfigFileService<A>,
-	never,
-	FileSystem.FileSystem
-> => Layer.mergeAll(XdgLive(options.app), makeConfigFileLive(options.config));
+): Layer.Layer<XdgResolver | AppDirs | ConfigFileService<A>, never, FileSystem.FileSystem> =>
+	Layer.mergeAll(XdgLive(options.app), ConfigFile.Live(options.config));

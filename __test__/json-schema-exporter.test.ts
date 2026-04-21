@@ -3,10 +3,9 @@ import { join } from "node:path";
 import { NodeFileSystem } from "@effect/platform-node";
 import { Effect, Layer, Schema } from "effect";
 import { afterEach, describe, expect, it } from "vitest";
-import { JsonSchemaExporterLive } from "../src/layers/JsonSchemaExporterLive.js";
 import { JsonSchemaExporter } from "../src/services/JsonSchemaExporter.js";
 
-const TestLayer = Layer.provide(JsonSchemaExporterLive, NodeFileSystem.layer);
+const TestLayer = Layer.provide(JsonSchemaExporter.Live, NodeFileSystem.layer);
 
 const run = <A, E>(effect: Effect.Effect<A, E, JsonSchemaExporter>) =>
 	Effect.runPromise(Effect.provide(effect, TestLayer));
@@ -88,5 +87,27 @@ describe("JsonSchemaExporter", () => {
 			}),
 		);
 		expect(result._tag).toBe("Unchanged");
+	});
+});
+
+describe("JsonSchemaExporter.Test", () => {
+	it("generates schemas in scoped test layer", async () => {
+		const result = await Effect.runPromise(
+			Effect.scoped(
+				Effect.provide(
+					Effect.gen(function* () {
+						const exporter = yield* JsonSchemaExporter;
+						return yield* exporter.generate({
+							name: "TestSchema",
+							schema: Schema.Struct({ name: Schema.String }),
+							rootDefName: "TestSchema",
+						});
+					}),
+					JsonSchemaExporter.Test,
+				),
+			),
+		);
+		expect(result.name).toBe("TestSchema");
+		expect(result.schema).toBeDefined();
 	});
 });

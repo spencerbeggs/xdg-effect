@@ -4,7 +4,9 @@ import { DateTime, Effect, Layer, Option, PubSub } from "effect";
 import { CacheError } from "../errors/CacheError.js";
 import { CacheEntry } from "../schemas/CacheEntry.js";
 import { CacheEvent } from "../schemas/CacheEvent.js";
+// biome-ignore lint/suspicious/noImportCycles: layer intentionally co-locates with its service tag
 import type { PruneResult } from "../services/SqliteCache.js";
+// biome-ignore lint/suspicious/noImportCycles: layer intentionally co-locates with its service tag
 import { SqliteCache } from "../services/SqliteCache.js";
 
 const emit = (pubsub: PubSub.PubSub<CacheEvent>, event: typeof CacheEvent.Type.event) =>
@@ -26,7 +28,7 @@ const wrapCacheError =
 		);
 	};
 
-export const makeSqliteCacheLive = (): Layer.Layer<SqliteCache, never, SqlClient.SqlClient> =>
+export const makeSqliteCacheLiveImpl = (): Layer.Layer<SqliteCache, never, SqlClient.SqlClient> =>
 	Layer.effect(
 		SqliteCache,
 		Effect.gen(function* () {

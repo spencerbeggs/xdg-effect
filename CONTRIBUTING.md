@@ -113,7 +113,7 @@ pnpm vitest run __test__/config-file.test.ts
 
 ```typescript
 // Use .js extensions for relative imports (ESM requirement)
-import { AppDirsLive } from "./layers/AppDirsLive.js";
+import { AppDirsLiveImpl } from "./layers/AppDirsLive.js";
 
 // Use node: protocol for Node.js built-ins
 import { homedir } from "node:os";

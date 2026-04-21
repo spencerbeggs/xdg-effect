@@ -1,6 +1,10 @@
 import type { Effect, Option } from "effect";
 import { Context } from "effect";
 import type { XdgError } from "../errors/XdgError.js";
+// biome-ignore lint/suspicious/noImportCycles: service class intentionally co-locates its Live layer
+import { XdgResolverLiveImpl } from "../layers/XdgResolverLive.js";
+// biome-ignore lint/suspicious/noImportCycles: service class intentionally co-locates its Test layer
+import { XdgResolverTestImpl } from "../layers/XdgResolverTest.js";
 import type { XdgPaths } from "../schemas/XdgPaths.js";
 
 export interface XdgResolverService {
@@ -13,4 +17,9 @@ export interface XdgResolverService {
 	readonly resolveAll: Effect.Effect<XdgPaths, XdgError>;
 }
 
-export class XdgResolver extends Context.Tag("xdg-effect/XdgResolver")<XdgResolver, XdgResolverService>() {}
+export class XdgResolver extends Context.Tag("xdg-effect/XdgResolver")<XdgResolver, XdgResolverService>() {
+	static get Live() {
+		return XdgResolverLiveImpl();
+	}
+	static Test = XdgResolverTestImpl;
+}

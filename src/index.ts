@@ -24,19 +24,13 @@ export {
 export { StateError, StateErrorBase } from "./errors/StateError.js";
 export type { XdgEffectError } from "./errors/types.js";
 export { XdgError, XdgErrorBase } from "./errors/XdgError.js";
-// ── Layers ──────────────────────────────────────────────────────────────────
-export { AppDirsLive } from "./layers/AppDirsLive.js";
+// ── Layers (composites) ────────────────────────────────────────────────────
 export type { ConfigFileOptions } from "./layers/ConfigFileLive.js";
-export { makeConfigFileLive } from "./layers/ConfigFileLive.js";
-export { JsonSchemaExporterLive } from "./layers/JsonSchemaExporterLive.js";
-export { makeSqliteCacheLive } from "./layers/SqliteCacheLive.js";
-export { makeSqliteStateLive } from "./layers/SqliteStateLive.js";
 export type { XdgConfigLiveOptions } from "./layers/XdgConfigLive.js";
 export { XdgConfigLive } from "./layers/XdgConfigLive.js";
 export type { XdgFullLiveOptions } from "./layers/XdgFullLive.js";
 export { XdgFullLive } from "./layers/XdgFullLive.js";
 export { XdgLive } from "./layers/XdgLive.js";
-export { XdgResolverLive } from "./layers/XdgResolverLive.js";
 // ── Resolvers ───────────────────────────────────────────────────────────────
 export type { ConfigResolver } from "./resolvers/ConfigResolver.js";
 export { ExplicitPath } from "./resolvers/ExplicitPath.js";
@@ -44,6 +38,7 @@ export { StaticDir } from "./resolvers/StaticDir.js";
 export { UpwardWalk } from "./resolvers/UpwardWalk.js";
 export { WorkspaceRoot } from "./resolvers/WorkspaceRoot.js";
 export { XdgConfig } from "./resolvers/XdgConfig.js";
+export { XdgSavePath } from "./resolvers/XdgSavePath.js";
 // ── Schemas ─────────────────────────────────────────────────────────────────
 export { AppDirsConfig } from "./schemas/AppDirsConfig.js";
 export { CacheEntry } from "./schemas/CacheEntry.js";
@@ -57,7 +52,7 @@ export { XdgPaths } from "./schemas/XdgPaths.js";
 export type { AppDirsService } from "./services/AppDirs.js";
 export { AppDirs } from "./services/AppDirs.js";
 export type { ConfigFileService } from "./services/ConfigFile.js";
-export { makeConfigFileTag } from "./services/ConfigFile.js";
+export { ConfigFile } from "./services/ConfigFile.js";
 export type {
 	JsonSchemaExporterService,
 	JsonSchemaOutput,
