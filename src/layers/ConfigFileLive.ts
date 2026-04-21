@@ -1,3 +1,4 @@
+import { dirname } from "node:path";
 import { FileSystem } from "@effect/platform";
 import type { Context } from "effect";
 import { Effect, Layer, Option, Schema } from "effect";
@@ -20,6 +21,8 @@ export interface ConfigFileOptions<A> {
 	readonly strategy: ConfigWalkStrategy<A>;
 	// biome-ignore lint/suspicious/noExplicitAny: resolvers may carry heterogeneous requirements
 	readonly resolvers: ReadonlyArray<ConfigResolver<any>>;
+	// biome-ignore lint/suspicious/noExplicitAny: defaultPath may carry heterogeneous requirements
+	readonly defaultPath?: Effect.Effect<string, ConfigError, any>;
 }
 
 /**
@@ -32,7 +35,7 @@ export interface ConfigFileOptions<A> {
  *
  * @public
  */
-export const makeConfigFileLive = <A>(
+export const makeConfigFileLiveImpl = <A>(
 	options: ConfigFileOptions<A>,
 ): Layer.Layer<ConfigFileService<A>, never, FileSystem.FileSystem> =>
 	Layer.effect(
@@ -118,10 +121,18 @@ export const makeConfigFileLive = <A>(
 					);
 				});
 
-			return {
+			const service: ConfigFileService<A> = {
 				load: Effect.flatMap(discoverSources, (sources) => options.strategy.resolve(sources)),
 				loadFrom: loadFromPath,
 				discover: discoverSources,
+				loadOrDefault: (defaultValue: A) =>
+					Effect.gen(function* () {
+						const sources = yield* discoverSources;
+						if (sources.length === 0) {
+							return defaultValue;
+						}
+						return yield* options.strategy.resolve(sources);
+					}),
 				write: (value: A, path: string) =>
 					Effect.gen(function* () {
 						const encoded = yield* Schema.encodeUnknown(options.schema)(value).pipe(
@@ -155,6 +166,70 @@ export const makeConfigFileLive = <A>(
 							),
 						);
 					}),
+				save: (value: A) =>
+					Effect.gen(function* () {
+						if (!options.defaultPath) {
+							return yield* Effect.fail(
+								new ConfigError({
+									operation: "save",
+									reason: "no default path configured",
+								}),
+							);
+						}
+						// Requirements of defaultPath are satisfied at layer construction; cast away R here
+						const path = yield* options.defaultPath as Effect.Effect<string, ConfigError>;
+						yield* fs.makeDirectory(dirname(path), { recursive: true }).pipe(
+							Effect.catchAll((e) =>
+								Effect.fail(
+									new ConfigError({
+										operation: "save",
+										path,
+										reason: String(e),
+									}),
+								),
+							),
+						);
+						const encoded = yield* Schema.encodeUnknown(options.schema)(value).pipe(
+							Effect.mapError(
+								(e) =>
+									new ConfigError({
+										operation: "encode",
+										path,
+										reason: String(e),
+									}),
+							),
+						);
+						const serialized = yield* options.codec.stringify(encoded).pipe(
+							Effect.mapError(
+								(e) =>
+									new ConfigError({
+										operation: "stringify",
+										path,
+										reason: String(e),
+									}),
+							),
+						);
+						yield* fs.writeFileString(path, serialized).pipe(
+							Effect.mapError(
+								(e) =>
+									new ConfigError({
+										operation: "write",
+										path,
+										reason: String(e),
+									}),
+							),
+						);
+						return path;
+					}),
+				update: (fn: (current: A) => A, defaultValue?: A) =>
+					Effect.gen(function* () {
+						const current =
+							defaultValue !== undefined ? yield* service.loadOrDefault(defaultValue) : yield* service.load;
+						const updated = fn(current);
+						yield* service.save(updated);
+						return updated;
+					}),
 			};
+			return service;
 		}),
 	);

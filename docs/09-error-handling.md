@@ -30,7 +30,7 @@ type XdgEffectError = XdgError | AppDirsError | ConfigError | CodecError | JsonS
 
 ```typescript
 import { Effect } from "effect";
-import { makeConfigFileTag } from "xdg-effect";
+import { ConfigFile } from "xdg-effect";
 
 // Assuming MyToolConfigFile is defined elsewhere
 const loadConfig = Effect.gen(function* () {
@@ -113,7 +113,7 @@ import { NodeFileSystem } from "@effect/platform-node";
 import { Effect, Schema } from "effect";
 import {
   AppDirsConfig,
-  makeConfigFileTag,
+  ConfigFile,
   TomlCodec,
   FirstMatch,
   XdgConfig,
@@ -128,7 +128,7 @@ const MyToolConfig = Schema.Struct({
 });
 type MyToolConfig = typeof MyToolConfig.Type;
 
-const MyToolConfigFile = makeConfigFileTag<MyToolConfig>("my-tool/Config");
+const MyToolConfigFile = ConfigFile.Tag<MyToolConfig>("my-tool/Config");
 
 const defaults: MyToolConfig = { name: "my-tool", port: 3000, debug: false };
 

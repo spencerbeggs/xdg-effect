@@ -1,10 +1,10 @@
+import { existsSync } from "node:fs";
 import { ConfigProvider, Effect, Option } from "effect";
 import { describe, expect, it } from "vitest";
-import { XdgResolver } from "../src/index.js";
-import { XdgResolverLive } from "../src/layers/XdgResolverLive.js";
+import { XdgResolver } from "../src/services/XdgResolver.js";
 
 const run = <A, E>(effect: Effect.Effect<A, E, XdgResolver>) =>
-	Effect.runPromise(Effect.provide(effect, XdgResolverLive));
+	Effect.runPromise(Effect.provide(effect, XdgResolver.Live));
 
 describe("XdgResolver", () => {
 	it("resolves home directory", async () => {
@@ -62,7 +62,7 @@ describe("XdgResolver", () => {
 					}),
 					customProvider,
 				),
-				XdgResolverLive,
+				XdgResolver.Live,
 			),
 		);
 		expect(result.home).toBe("/custom/home");
@@ -81,9 +81,48 @@ describe("XdgResolver", () => {
 					}),
 					customProvider,
 				),
-				XdgResolverLive,
+				XdgResolver.Live,
 			),
 		);
 		expect(Option.isNone(result)).toBe(true);
+	});
+});
+
+describe("XdgResolver.Test", () => {
+	it("provides mock paths without env vars", async () => {
+		const result = await Effect.runPromise(
+			Effect.scoped(
+				Effect.provide(
+					Effect.gen(function* () {
+						const resolver = yield* XdgResolver;
+						return yield* resolver.resolveAll;
+					}),
+					XdgResolver.Test({
+						home: "/mock/home",
+						configHome: "/mock/config",
+					}),
+				),
+			),
+		);
+		expect(result.home).toBe("/mock/home");
+		expect(Option.getOrNull(result.configHome)).toBe("/mock/config");
+		expect(Option.isNone(result.dataHome)).toBe(true);
+	});
+
+	it("creates a scoped temp dir when home is omitted", async () => {
+		let capturedHome = "";
+		await Effect.runPromise(
+			Effect.scoped(
+				Effect.provide(
+					Effect.gen(function* () {
+						const resolver = yield* XdgResolver;
+						capturedHome = yield* resolver.home;
+						expect(existsSync(capturedHome)).toBe(true);
+					}),
+					XdgResolver.Test(),
+				),
+			),
+		);
+		expect(existsSync(capturedHome)).toBe(false);
 	});
 });

@@ -10,15 +10,15 @@ Install the optional peer dependencies:
 pnpm add @effect/sql @effect/sql-sqlite-node
 ```
 
-Create a `SqlClient` layer using `@effect/sql-sqlite-node`, then provide it to `makeSqliteCacheLive`:
+Create a `SqlClient` layer using `@effect/sql-sqlite-node`, then provide it to `SqliteCache.Live`:
 
 ```typescript
 import { SqliteClient } from "@effect/sql-sqlite-node";
 import { Layer } from "effect";
-import { makeSqliteCacheLive } from "xdg-effect";
+import { SqliteCache } from "xdg-effect";
 
 const dbLayer = SqliteClient.layer({ filename: "/home/user/.cache/my-tool/cache.db" });
-const cacheLayer = makeSqliteCacheLive().pipe(Layer.provide(dbLayer));
+const cacheLayer = SqliteCache.Live().pipe(Layer.provide(dbLayer));
 ```
 
 For an XDG-compliant database location, use the `AppDirs` service to resolve the cache directory at runtime:
@@ -28,7 +28,7 @@ import { NodeFileSystem } from "@effect/platform-node";
 import { SqliteClient } from "@effect/sql-sqlite-node";
 import { Path } from "@effect/platform";
 import { Effect, Layer } from "effect";
-import { AppDirs, AppDirsConfig, makeSqliteCacheLive, XdgLive } from "xdg-effect";
+import { AppDirs, AppDirsConfig, SqliteCache, XdgLive } from "xdg-effect";
 
 const dbLayer = Layer.unwrapEffect(
   Effect.gen(function* () {
@@ -40,7 +40,7 @@ const dbLayer = Layer.unwrapEffect(
 );
 
 const appLayer = XdgLive(new AppDirsConfig({ namespace: "my-tool" }));
-const cacheLayer = makeSqliteCacheLive().pipe(
+const cacheLayer = SqliteCache.Live().pipe(
   Layer.provide(dbLayer),
   Layer.provide(appLayer),
   Layer.provide(NodeFileSystem.layer),
@@ -333,7 +333,6 @@ import {
   AppDirs,
   AppDirsConfig,
   SqliteCache,
-  makeSqliteCacheLive,
   XdgLive,
 } from "xdg-effect";
 
@@ -378,7 +377,7 @@ const dbLayer = SqliteClient.layer({ filename: ":memory:" });
 Effect.runPromise(
   program.pipe(
     Effect.scoped,
-    Effect.provide(makeSqliteCacheLive()),
+    Effect.provide(SqliteCache.Live()),
     Effect.provide(dbLayer),
     Effect.provide(appLayer),
     Effect.provide(NodeFileSystem.layer),

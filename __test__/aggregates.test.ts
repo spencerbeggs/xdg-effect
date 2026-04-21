@@ -8,13 +8,13 @@ import { XdgConfigLive } from "../src/layers/XdgConfigLive.js";
 import { XdgLive } from "../src/layers/XdgLive.js";
 import { StaticDir } from "../src/resolvers/StaticDir.js";
 import { AppDirs } from "../src/services/AppDirs.js";
-import { makeConfigFileTag } from "../src/services/ConfigFile.js";
+import { ConfigFile } from "../src/services/ConfigFile.js";
 import { XdgResolver } from "../src/services/XdgResolver.js";
 import { FirstMatch } from "../src/strategies/FirstMatch.js";
 
 const TestConfigSchema = Schema.Struct({ name: Schema.String });
 type TestConfig = typeof TestConfigSchema.Type;
-const TestConfig = makeConfigFileTag<TestConfig>("test/AggConfig");
+const TestConfig = ConfigFile.Tag<TestConfig>("test/AggConfig");
 
 const tmpDir = `/tmp/xdg-aggregate-test-${Date.now()}`;
 

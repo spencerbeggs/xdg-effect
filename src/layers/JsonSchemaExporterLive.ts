@@ -2,7 +2,9 @@ import { FileSystem } from "@effect/platform";
 import { Effect, JSONSchema, Layer } from "effect";
 import { JsonSchemaError } from "../errors/JsonSchemaError.js";
 import { Unchanged, Written } from "../schemas/WriteResult.js";
+// biome-ignore lint/suspicious/noImportCycles: layer intentionally co-locates with its service tag
 import type { JsonSchemaOutput, SchemaEntry } from "../services/JsonSchemaExporter.js";
+// biome-ignore lint/suspicious/noImportCycles: layer intentionally co-locates with its service tag
 import { JsonSchemaExporter } from "../services/JsonSchemaExporter.js";
 
 const inlineRootRef = (schema: Record<string, unknown>, defName: string): Record<string, unknown> => {
@@ -63,18 +65,49 @@ const generateOne = (entry: SchemaEntry): Effect.Effect<JsonSchemaOutput, JsonSc
 			}),
 	});
 
-export const JsonSchemaExporterLive: Layer.Layer<JsonSchemaExporter, never, FileSystem.FileSystem> = Layer.effect(
-	JsonSchemaExporter,
-	Effect.gen(function* () {
-		const fs = yield* FileSystem.FileSystem;
+export const JsonSchemaExporterLiveImpl = (): Layer.Layer<JsonSchemaExporter, never, FileSystem.FileSystem> =>
+	Layer.effect(
+		JsonSchemaExporter,
+		Effect.gen(function* () {
+			const fs = yield* FileSystem.FileSystem;
 
-		const writeSingle = (output: JsonSchemaOutput, path: string) =>
-			Effect.gen(function* () {
-				const content = `${JSON.stringify(output.schema, null, "\t")}\n`;
+			const writeSingle = (output: JsonSchemaOutput, path: string) =>
+				Effect.gen(function* () {
+					const content = `${JSON.stringify(output.schema, null, "\t")}\n`;
 
-				const exists = yield* fs.exists(path).pipe(Effect.catchAll(() => Effect.succeed(false)));
-				if (exists) {
-					const existing = yield* fs.readFileString(path).pipe(
+					const exists = yield* fs.exists(path).pipe(Effect.catchAll(() => Effect.succeed(false)));
+					if (exists) {
+						const existing = yield* fs.readFileString(path).pipe(
+							Effect.mapError(
+								(e) =>
+									new JsonSchemaError({
+										operation: "write",
+										name: output.name,
+										reason: String(e),
+									}),
+							),
+						);
+						const existingParsed = yield* Effect.try({
+							try: () => JSON.parse(existing) as unknown,
+							catch: () =>
+								new JsonSchemaError({
+									operation: "write",
+									name: output.name,
+									reason: "failed to parse existing file",
+								}),
+						});
+						if (deepEqual(existingParsed, output.schema)) {
+							return Unchanged(path);
+						}
+					}
+
+					const lastSlash = path.lastIndexOf("/");
+					if (lastSlash > 0) {
+						const parentDir = path.slice(0, lastSlash);
+						yield* fs.makeDirectory(parentDir, { recursive: true }).pipe(Effect.catchAll(() => Effect.void));
+					}
+
+					yield* fs.writeFileString(path, content).pipe(
 						Effect.mapError(
 							(e) =>
 								new JsonSchemaError({
@@ -84,47 +117,17 @@ export const JsonSchemaExporterLive: Layer.Layer<JsonSchemaExporter, never, File
 								}),
 						),
 					);
-					const existingParsed = yield* Effect.try({
-						try: () => JSON.parse(existing) as unknown,
-						catch: () =>
-							new JsonSchemaError({
-								operation: "write",
-								name: output.name,
-								reason: "failed to parse existing file",
-							}),
-					});
-					if (deepEqual(existingParsed, output.schema)) {
-						return Unchanged(path);
-					}
-				}
+					return Written(path);
+				});
 
-				const lastSlash = path.lastIndexOf("/");
-				if (lastSlash > 0) {
-					const parentDir = path.slice(0, lastSlash);
-					yield* fs.makeDirectory(parentDir, { recursive: true }).pipe(Effect.catchAll(() => Effect.void));
-				}
+			return JsonSchemaExporter.of({
+				generate: generateOne,
 
-				yield* fs.writeFileString(path, content).pipe(
-					Effect.mapError(
-						(e) =>
-							new JsonSchemaError({
-								operation: "write",
-								name: output.name,
-								reason: String(e),
-							}),
-					),
-				);
-				return Written(path);
+				generateMany: (entries) => Effect.all(entries.map(generateOne)),
+
+				write: writeSingle,
+
+				writeMany: (outputs) => Effect.all(outputs.map(({ output, path }) => writeSingle(output, path))),
 			});
-
-		return JsonSchemaExporter.of({
-			generate: generateOne,
-
-			generateMany: (entries) => Effect.all(entries.map(generateOne)),
-
-			write: writeSingle,
-
-			writeMany: (outputs) => Effect.all(outputs.map(({ output, path }) => writeSingle(output, path))),
-		});
-	}),
-);
+		}),
+	);

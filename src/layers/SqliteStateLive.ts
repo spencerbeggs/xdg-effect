@@ -2,10 +2,12 @@ import { SqlClient } from "@effect/sql";
 import { DateTime, Effect, Layer, Option } from "effect";
 import { StateError } from "../errors/StateError.js";
 import { MigrationStatus } from "../schemas/MigrationStatus.js";
+// biome-ignore lint/suspicious/noImportCycles: layer intentionally co-locates with its service tag
 import type { MigrationResult, StateMigration } from "../services/SqliteState.js";
+// biome-ignore lint/suspicious/noImportCycles: layer intentionally co-locates with its service tag
 import { SqliteState } from "../services/SqliteState.js";
 
-export const makeSqliteStateLive = (options: {
+export const makeSqliteStateLiveImpl = (options: {
 	readonly migrations: ReadonlyArray<StateMigration>;
 }): Layer.Layer<SqliteState, never, SqlClient.SqlClient> =>
 	Layer.effect(

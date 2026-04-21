@@ -2,6 +2,10 @@ import type { SqlClient } from "@effect/sql";
 import type { Effect } from "effect";
 import { Context } from "effect";
 import type { StateError } from "../errors/StateError.js";
+// biome-ignore lint/suspicious/noImportCycles: service class intentionally co-locates its Live layer
+import { makeSqliteStateLiveImpl } from "../layers/SqliteStateLive.js";
+// biome-ignore lint/suspicious/noImportCycles: service class intentionally co-locates its Test layer
+import { SqliteStateTestImpl } from "../layers/SqliteStateTest.js";
 import type { MigrationStatus } from "../schemas/MigrationStatus.js";
 
 export interface StateMigration {
@@ -29,4 +33,7 @@ export interface SqliteStateService {
 	readonly status: Effect.Effect<ReadonlyArray<MigrationStatus>, StateError>;
 }
 
-export class SqliteState extends Context.Tag("xdg-effect/SqliteState")<SqliteState, SqliteStateService>() {}
+export class SqliteState extends Context.Tag("xdg-effect/SqliteState")<SqliteState, SqliteStateService>() {
+	static Live = makeSqliteStateLiveImpl;
+	static Test = SqliteStateTestImpl;
+}

@@ -3,12 +3,11 @@ import { NodeFileSystem } from "@effect/platform-node";
 import { SqliteClient } from "@effect/sql-sqlite-node";
 import { Effect, Layer, Option } from "effect";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { AppDirsLive } from "../src/layers/AppDirsLive.js";
-import { makeSqliteStateLive } from "../src/layers/SqliteStateLive.js";
-import { XdgResolverLive } from "../src/layers/XdgResolverLive.js";
 import { AppDirsConfig } from "../src/schemas/AppDirsConfig.js";
+import { AppDirs } from "../src/services/AppDirs.js";
 import type { StateMigration } from "../src/services/SqliteState.js";
 import { SqliteState } from "../src/services/SqliteState.js";
+import { XdgResolver } from "../src/services/XdgResolver.js";
 
 const tmpDir = `/tmp/xdg-state-test-${Date.now()}`;
 const stateDir = `${tmpDir}/state`;
@@ -44,8 +43,11 @@ const makeLayers = (migrations: ReadonlyArray<StateMigration>) => {
 	const SqliteLive = SqliteClient.layer({
 		filename: `${stateDir}/state.db`,
 	});
-	const AppDirsLayer = Layer.provide(AppDirsLive(appDirsConfig), Layer.mergeAll(XdgResolverLive, NodeFileSystem.layer));
-	const StateLayer = makeSqliteStateLive({ migrations });
+	const AppDirsLayer = Layer.provide(
+		AppDirs.Live(appDirsConfig),
+		Layer.mergeAll(XdgResolver.Live, NodeFileSystem.layer),
+	);
+	const StateLayer = SqliteState.Live({ migrations });
 	return Layer.provide(StateLayer, Layer.mergeAll(AppDirsLayer, SqliteLive, NodeFileSystem.layer));
 };
 
@@ -107,5 +109,29 @@ describe("SqliteState", () => {
 		expect(result.rollbackResult.rolledBack[0]?.name).toBe("add-email");
 		expect(Option.isSome(result.status[0]?.appliedAt)).toBe(true);
 		expect(Option.isNone(result.status[1]?.appliedAt)).toBe(true);
+	});
+});
+
+describe("SqliteState.Test", () => {
+	it("provides in-memory state with migrations", async () => {
+		const testMigration: StateMigration = {
+			id: 1,
+			name: "create_test_table",
+			up: (sql) => sql`CREATE TABLE test_data (id INTEGER PRIMARY KEY, value TEXT)`.pipe(Effect.asVoid),
+			down: (sql) => sql`DROP TABLE test_data`.pipe(Effect.asVoid),
+		};
+
+		const result = await Effect.runPromise(
+			Effect.provide(
+				Effect.gen(function* () {
+					const state = yield* SqliteState;
+					return yield* state.status;
+				}),
+				SqliteState.Test({ migrations: [testMigration] }),
+			),
+		);
+		expect(result.length).toBe(1);
+		expect(result[0]?.name).toBe("create_test_table");
+		expect(Option.isSome(result[0]?.appliedAt ?? Option.none())).toBe(true);
 	});
 });

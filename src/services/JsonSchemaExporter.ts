@@ -1,6 +1,10 @@
 import type { Effect, Schema } from "effect";
 import { Context } from "effect";
 import type { JsonSchemaError } from "../errors/JsonSchemaError.js";
+// biome-ignore lint/suspicious/noImportCycles: service class intentionally co-locates its Live layer
+import { JsonSchemaExporterLiveImpl } from "../layers/JsonSchemaExporterLive.js";
+// biome-ignore lint/suspicious/noImportCycles: service class intentionally co-locates its Test layer
+import { JsonSchemaExporterTestImpl } from "../layers/JsonSchemaExporterTest.js";
 import type { WriteResult } from "../schemas/WriteResult.js";
 
 export interface SchemaEntry {
@@ -30,4 +34,9 @@ export interface JsonSchemaExporterService {
 export class JsonSchemaExporter extends Context.Tag("xdg-effect/JsonSchemaExporter")<
 	JsonSchemaExporter,
 	JsonSchemaExporterService
->() {}
+>() {
+	static get Live() {
+		return JsonSchemaExporterLiveImpl();
+	}
+	static Test = JsonSchemaExporterTestImpl;
+}

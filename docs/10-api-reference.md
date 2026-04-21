@@ -8,7 +8,7 @@ Complete reference for all xdg-effect exports, organized by category. Each entry
 | ------- | --- | ----- |
 | `XdgResolver` | `"xdg-effect/XdgResolver"` | [Resolving XDG Paths](./02-resolving-xdg-paths.md) |
 | `AppDirs` | `"xdg-effect/AppDirs"` | [Resolving XDG Paths](./02-resolving-xdg-paths.md) |
-| `ConfigFileService<A>` | via `makeConfigFileTag(id)` | [Config Files](./03-config-files.md) |
+| `ConfigFileService<A>` | via `ConfigFile.Tag(id)` | [Config Files](./03-config-files.md) |
 | `JsonSchemaExporter` | `"xdg-effect/JsonSchemaExporter"` | [JSON Schema Generation](./04-json-schema-generation.md) |
 | `SqliteCache` | `"xdg-effect/SqliteCache"` | [SQLite Cache](./05-sqlite-cache.md) |
 | `SqliteState` | `"xdg-effect/SqliteState"` | [SQLite State](./06-sqlite-state.md) |
@@ -32,6 +32,10 @@ interface AppDirsService {
   readonly cache: Effect<string, AppDirsError>;
   readonly state: Effect<string, AppDirsError>;
   readonly runtime: Effect<Option<string>, AppDirsError>;
+  readonly ensureConfig: Effect<string, AppDirsError>;
+  readonly ensureData: Effect<string, AppDirsError>;
+  readonly ensureCache: Effect<string, AppDirsError>;
+  readonly ensureState: Effect<string, AppDirsError>;
   readonly resolveAll: Effect<ResolvedAppDirs, AppDirsError>;
   readonly ensure: Effect<ResolvedAppDirs, AppDirsError>;
 }
@@ -42,6 +46,9 @@ interface ConfigFileService<A> {
   readonly loadFrom: (path: string) => Effect<A, ConfigError>;
   readonly discover: Effect<ReadonlyArray<ConfigSource<A>>, ConfigError>;
   readonly write: (value: A, path: string) => Effect<void, ConfigError>;
+  readonly loadOrDefault: (defaultValue: A) => Effect<A, ConfigError>;
+  readonly save: (value: A) => Effect<string, ConfigError>;
+  readonly update: (fn: (current: A) => A, defaultValue?: A) => Effect<A, ConfigError>;
 }
 
 // JsonSchemaExporterService
@@ -84,14 +91,14 @@ interface SqliteStateService {
 
 | Layer | Provides | Requires | Guide |
 | ----- | -------- | -------- | ----- |
-| `XdgResolverLive` | `XdgResolver` | (none) | [Resolving XDG Paths](./02-resolving-xdg-paths.md) |
-| `AppDirsLive(config)` | `AppDirs` | `XdgResolver`, `FileSystem` | [Resolving XDG Paths](./02-resolving-xdg-paths.md) |
+| `XdgResolver.Live` | `XdgResolver` | (none) | [Resolving XDG Paths](./02-resolving-xdg-paths.md) |
+| `AppDirs.Live(config)` | `AppDirs` | `XdgResolver`, `FileSystem` | [Resolving XDG Paths](./02-resolving-xdg-paths.md) |
 | `XdgLive(config)` | `XdgResolver`, `AppDirs` | `FileSystem` | [Resolving XDG Paths](./02-resolving-xdg-paths.md) |
-| `makeConfigFileLive(options)` | `ConfigFileService<A>` | `FileSystem` | [Config Files](./03-config-files.md) |
+| `ConfigFile.Live(options)` | `ConfigFileService<A>` | `FileSystem` | [Config Files](./03-config-files.md) |
 | `XdgConfigLive(options)` | `XdgResolver`, `AppDirs`, `ConfigFileService<A>` | `FileSystem` | [Config Files](./03-config-files.md) |
-| `JsonSchemaExporterLive` | `JsonSchemaExporter` | `FileSystem` | [JSON Schema Generation](./04-json-schema-generation.md) |
-| `makeSqliteCacheLive()` | `SqliteCache` | `SqlClient` | [SQLite Cache](./05-sqlite-cache.md) |
-| `makeSqliteStateLive(options)` | `SqliteState` | `SqlClient` | [SQLite State](./06-sqlite-state.md) |
+| `JsonSchemaExporter.Live` | `JsonSchemaExporter` | `FileSystem` | [JSON Schema Generation](./04-json-schema-generation.md) |
+| `SqliteCache.Live()` | `SqliteCache` | `SqlClient` | [SQLite Cache](./05-sqlite-cache.md) |
+| `SqliteState.Live(options)` | `SqliteState` | `SqlClient` | [SQLite State](./06-sqlite-state.md) |
 | `XdgFullLive(options)` | `XdgResolver`, `AppDirs`, `ConfigFileService<A>`, `SqliteCache`, `SqliteState` | `FileSystem`, `SqlClient` | [Getting Started](./01-getting-started.md) |
 
 ## Codecs
@@ -119,6 +126,7 @@ interface ConfigCodec {
 | `UpwardWalk(options)` | `filename`, `cwd?`, `stopAt?` | `FileSystem` | [Config Files](./03-config-files.md) |
 | `XdgConfig(options)` | `filename` | `FileSystem`, `AppDirs` | [Config Files](./03-config-files.md) |
 | `WorkspaceRoot(options)` | `filename`, `subpath?`, `cwd?` | `FileSystem` | [Config Files](./03-config-files.md) |
+| `XdgSavePath(filename)` | `filename: string` | `AppDirs` | [Config Files](./03-config-files.md) |
 
 ```typescript
 interface ConfigResolver<R = never> {

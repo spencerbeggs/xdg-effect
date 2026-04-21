@@ -18,6 +18,8 @@ The [XDG Base Directory Specification](https://specifications.freedesktop.org/ba
 
 When an XDG variable is not set, XDG-compliant applications are expected to fall back to the default path listed above. xdg-effect's `AppDirs` service resolves directories using a 4-level precedence model described below. Note that it does NOT apply the XDG default paths when variables are unset — see the design note in the AppDirs section for details.
 
+> **Effect concept: Schema classes and Option** — Throughout this guide, constructors like `new AppDirsConfig({ namespace: "my-tool" })` use Effect Schema classes, which accept plain JavaScript objects. Fields typed as `Option<T>` represent values that may or may not be present: `Option.some(value)` means a value exists, and `Option.none()` means it is absent. You do not construct `Option` values directly when passing config — omit or pass `undefined` for optional fields and the library wraps them for you. See the [Effect Schema docs](https://effect.website/docs/schema/introduction) for a deeper introduction.
+
 ## XdgResolver
 
 `XdgResolver` is the lowest-level service. It reads the five XDG environment variables and `HOME` through Effect's `Config` module, returning each as a typed Effect value.
@@ -87,10 +89,27 @@ interface AppDirsService {
   readonly cache: Effect.Effect<string, AppDirsError>;
   readonly state: Effect.Effect<string, AppDirsError>;
   readonly runtime: Effect.Effect<Option.Option<string>, AppDirsError>;
+  readonly ensureConfig: Effect.Effect<string, AppDirsError>;
+  readonly ensureData: Effect.Effect<string, AppDirsError>;
+  readonly ensureCache: Effect.Effect<string, AppDirsError>;
+  readonly ensureState: Effect.Effect<string, AppDirsError>;
   readonly resolveAll: Effect.Effect<ResolvedAppDirs, AppDirsError>;
   readonly ensure: Effect.Effect<ResolvedAppDirs, AppDirsError>;
 }
 ```
+
+The `ensure*` methods resolve and create a single directory type on disk (including parent directories), returning the resolved path. Use them when you only need one specific directory created rather than all of them:
+
+```typescript
+const configDir = yield* appDirs.ensureConfig;
+// e.g., /home/user/.config/my-tool (created if it did not exist)
+```
+
+**When to use `ensureConfig` vs `ensure`:**
+
+- Use `ensureConfig` (or `ensureData`, `ensureCache`, `ensureState`) when you only need one directory before performing an operation — for example, ensuring the config directory exists before writing a config file. This avoids creating data, cache, and state directories unnecessarily.
+- Use `ensure` when your app needs all directories available at startup.
+- Per-directory ensure is especially useful in tests where creating all directories may fail or have side effects if paths are mocked or restricted.
 
 ### AppDirsConfig schema
 
@@ -119,13 +138,13 @@ Pass an `AppDirsConfig` to the layer factory to configure namespace and optional
 
 ## XdgLive aggregate layer
 
-`XdgLive` composes `XdgResolverLive` and `AppDirsLive` into a single layer. Use it when your program needs both services and you do not want to wire them manually.
+`XdgLive` composes `XdgResolver.Live` and `AppDirs.Live(config)` into a single layer. Use it when your program needs both services and you do not want to wire them manually.
 
 ```typescript
 XdgLive(config: AppDirsConfig): Layer<XdgResolver | AppDirs, never, FileSystem>
 ```
 
-`XdgLive` requires `FileSystem` from `@effect/platform` because `AppDirsLive` uses it for directory creation in `ensure`. You provide the platform's `FileSystem` layer (for example, `NodeFileSystem.layer`) separately.
+`XdgLive` requires `FileSystem` from `@effect/platform` because `AppDirs.Live` uses it for directory creation in `ensure`. You provide the platform's `FileSystem` layer (for example, `NodeFileSystem.layer`) separately.
 
 ## Runnable example
 

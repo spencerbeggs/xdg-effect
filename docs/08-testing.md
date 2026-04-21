@@ -2,13 +2,48 @@
 
 xdg-effect is designed for testability. Every service reads configuration through Effect's dependency injection, so you can swap implementations in tests without touching environment variables or the real filesystem.
 
+## Test Layers
+
+Every service provides a `.Test` static that creates a pre-configured test layer with sensible defaults. Test layers use scoped temp directories that are cleaned up automatically when the scope closes.
+
+| Service | Test Layer | Notes |
+| ------- | ---------- | ----- |
+| `XdgResolver.Test(options?)` | Provides `XdgResolver` | Uses a temp dir for HOME by default; pass options to override individual paths (home, configHome, dataHome, etc.) as plain strings |
+| `AppDirs.Test({ namespace })` | Provides `XdgResolver` + `AppDirs` | Composes a test XdgResolver with a real AppDirs backed by NodeFileSystem |
+| `ConfigFile.Test(options)` | Provides `ConfigFileService<A>` | Accepts all `ConfigFileOptions` fields plus an optional `files: Record<string, string>` for pre-populating test files in temp directories |
+| `JsonSchemaExporter.Test` | Provides `JsonSchemaExporter` | Test layer for JSON Schema generation |
+| `SqliteCache.Test` | Provides `SqliteCache` | Uses an in-memory SQLite database |
+| `SqliteState.Test(options)` | Provides `SqliteState` | Uses an in-memory SQLite database with migrations |
+
+### When to use Test layers
+
+- Use `.Test` statics for most tests — they handle temp dir lifecycle and wiring automatically, so you write less boilerplate
+- Use custom layers when you need specific control over the environment (custom `ConfigProvider`, explicit directory paths, testing error conditions)
+- `.Test` layers exercise the real service logic — they are integration-style, not mocks
+
+```typescript
+import { Effect } from "effect";
+import { XdgResolver } from "xdg-effect";
+
+const test = Effect.gen(function* () {
+  const resolver = yield* XdgResolver;
+  const home = yield* resolver.home;
+  // home is a scoped temp directory
+}).pipe(
+  Effect.scoped,
+  Effect.provide(XdgResolver.Test()),
+);
+```
+
+All `.Test` layers require `Scope` because they manage temp directory lifetimes. Wrap test effects in `Effect.scoped` to ensure cleanup.
+
 ## Testing XdgResolver with ConfigProvider
 
 Effect's `ConfigProvider` lets you override where `Config` values come from. Pass a custom provider built from a plain `Map` and wrap your test effect with `Effect.withConfigProvider`.
 
 ```typescript
 import { Effect, ConfigProvider } from "effect";
-import { XdgResolver, XdgResolverLive } from "xdg-effect";
+import { XdgResolver } from "xdg-effect";
 
 const testProvider = ConfigProvider.fromMap(
   new Map([
@@ -23,15 +58,15 @@ const test = Effect.gen(function* () {
   // home === "/test/home"
 }).pipe(
   Effect.withConfigProvider(testProvider),
-  Effect.provide(XdgResolverLive),
+  Effect.provide(XdgResolver.Live),
 );
 ```
 
-`ConfigProvider.fromMap` constructs a provider that serves values from the map instead of reading `process.env`. Because `XdgResolverLive` uses Effect `Config` internally, the provider intercepts every variable lookup — no environment mutation needed.
+`ConfigProvider.fromMap` constructs a provider that serves values from the map instead of reading `process.env`. Because `XdgResolver.Live` uses Effect `Config` internally, the provider intercepts every variable lookup — no environment mutation needed.
 
 ### Testing with XdgConfigLive
 
-When testing code that uses the full `XdgConfigLive` layer (not just `XdgResolverLive`), you need to apply `Effect.withConfigProvider` at the right level. The provider must be set before `XdgResolverLive` reads from `Config`:
+When testing code that uses the full `XdgConfigLive` layer (not just `XdgResolver.Live`), you need to apply `Effect.withConfigProvider` at the right level. The provider must be set before `XdgResolver.Live` reads from `Config`:
 
 ```typescript
 import { FileSystem } from "@effect/platform";
@@ -39,16 +74,16 @@ import { NodeFileSystem } from "@effect/platform-node";
 import { ConfigProvider, Effect, Layer, Schema } from "effect";
 import {
   AppDirsConfig,
+  ConfigFile,
   ExplicitPath,
   FirstMatch,
-  makeConfigFileTag,
   TomlCodec,
   XdgConfigLive,
 } from "xdg-effect";
 
 const TestConfig = Schema.Struct({ name: Schema.String });
 type TestConfig = typeof TestConfig.Type;
-const TestConfigFile = makeConfigFileTag<TestConfig>("test/Config");
+const TestConfigFile = ConfigFile.Tag<TestConfig>("test/Config");
 
 const testProvider = ConfigProvider.fromMap(
   new Map([["HOME", "/test/home"]]),
@@ -114,7 +149,7 @@ Provide layers in tests the same way as production. Use `Layer.provide` to swap 
 import { Layer } from "effect";
 import {
   AppDirsConfig,
-  makeConfigFileLive,
+  ConfigFile,
   TomlCodec,
   FirstMatch,
   ExplicitPath,
@@ -122,7 +157,7 @@ import {
 } from "xdg-effect";
 
 // Build a test-specific config layer pointing at a known path
-const testConfigLayer = makeConfigFileLive({
+const testConfigLayer = ConfigFile.Live({
   tag: MyConfigFile,
   schema: MyConfig,
   codec: TomlCodec,
@@ -146,7 +181,7 @@ Use `PubSub.subscribe` to capture events emitted during cache operations. Subscr
 ```typescript
 import { SqliteClient } from "@effect/sql-sqlite-node";
 import { Effect, PubSub, Queue } from "effect";
-import { SqliteCache, makeSqliteCacheLive } from "xdg-effect";
+import { SqliteCache } from "xdg-effect";
 
 const test = Effect.gen(function* () {
   const cache = yield* SqliteCache;
@@ -162,7 +197,7 @@ const test = Effect.gen(function* () {
   // event.event.key === "test"
 }).pipe(
   Effect.scoped,
-  Effect.provide(makeSqliteCacheLive()),
+  Effect.provide(SqliteCache.Live()),
   Effect.provide(SqliteClient.layer({ filename: ":memory:" })),
 );
 ```
@@ -182,16 +217,13 @@ import { describe, expect, it } from "vitest";
 import {
   AppDirs,
   AppDirsConfig,
+  ConfigFile,
   ExplicitPath,
   FirstMatch,
-  makeConfigFileTag,
-  makeConfigFileLive,
-  makeSqliteCacheLive,
   SqliteCache,
   TomlCodec,
   XdgLive,
   XdgResolver,
-  XdgResolverLive,
 } from "xdg-effect";
 
 describe("xdg-effect", () => {
@@ -206,7 +238,7 @@ describe("xdg-effect", () => {
         return yield* resolver.resolveAll;
       }).pipe(
         Effect.withConfigProvider(provider),
-        Effect.provide(XdgResolverLive),
+        Effect.provide(XdgResolver.Live),
       ),
     );
 
@@ -220,7 +252,7 @@ describe("xdg-effect", () => {
       port: Schema.Number,
     });
     type TestConfig = typeof TestConfig.Type;
-    const TestConfigFile = makeConfigFileTag<TestConfig>("test/Config");
+    const TestConfigFile = ConfigFile.Tag<TestConfig>("test/Config");
 
     const result = await Effect.runPromise(
       Effect.gen(function* () {
@@ -231,7 +263,7 @@ describe("xdg-effect", () => {
           'name = "test"\nport = 3000\n',
         );
 
-        const configLayer = makeConfigFileLive({
+        const configLayer = ConfigFile.Live({
           tag: TestConfigFile,
           schema: TestConfig,
           codec: TomlCodec,
@@ -283,7 +315,7 @@ describe("xdg-effect", () => {
         return collected;
       }).pipe(
         Effect.scoped,
-        Effect.provide(makeSqliteCacheLive()),
+        Effect.provide(SqliteCache.Live()),
         Effect.provide(SqliteClient.layer({ filename: ":memory:" })),
       ),
     );
