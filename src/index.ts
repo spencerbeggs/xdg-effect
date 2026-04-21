@@ -26,11 +26,13 @@ export type { XdgEffectError } from "./errors/types.js";
 export { XdgError, XdgErrorBase } from "./errors/XdgError.js";
 // ── Layers (composites) ────────────────────────────────────────────────────
 export type { ConfigFileOptions } from "./layers/ConfigFileLive.js";
+export type { ConfigFileTestOptions } from "./layers/ConfigFileTest.js";
 export type { XdgConfigLiveOptions } from "./layers/XdgConfigLive.js";
 export { XdgConfigLive } from "./layers/XdgConfigLive.js";
 export type { XdgFullLiveOptions } from "./layers/XdgFullLive.js";
 export { XdgFullLive } from "./layers/XdgFullLive.js";
 export { XdgLive } from "./layers/XdgLive.js";
+export type { XdgResolverTestOptions } from "./layers/XdgResolverTest.js";
 // ── Resolvers ───────────────────────────────────────────────────────────────
 export type { ConfigResolver } from "./resolvers/ConfigResolver.js";
 export { ExplicitPath } from "./resolvers/ExplicitPath.js";
