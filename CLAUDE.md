@@ -41,6 +41,12 @@ src/
   strategies/           # Config resolution merge strategies
 ```
 
+### User Documentation
+
+Progressive guides live in `docs/` (01-getting-started through
+10-api-reference). Keep these consistent when changing public API surface,
+adding services, or modifying layer composition.
+
 ### Design Documentation
 
 **For architecture details, layer composition, and design rationale:**

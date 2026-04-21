@@ -3,7 +3,20 @@
 		"xdg-effect": {
 			"path": ".",
 			"designDocsPath": ".claude/design/xdg-effect",
-			"categories": ["architecture", "performance", "observability", "testing"]
+			"categories": ["architecture", "performance", "observability", "testing"],
+			"maintainer": "C. Spencer Beggs",
+			"userDocs": {
+				"readme": "README.md",
+				"repoDocs": "docs/"
+			}
+		}
+	},
+	"quality": {
+		"designDocs": {
+			"maxLineLength": 120,
+			"requireFrontmatter": true,
+			"requireTOC": true,
+			"minSections": ["Overview", "Current State", "Rationale", "Related Documentation"]
 		}
 	}
 }

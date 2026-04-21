@@ -1,73 +1,214 @@
-# pnpm-module-template
+# xdg-effect
 
-A personal template repository by
-[C. Spencer Beggs](https://spencerbeg.gs) for developing and publishing Node.js
-modules to [npm](https://www.npmjs.com/) and
-[GitHub Packages](https://github.com/features/packages).
+[![npm version](https://img.shields.io/npm/v/xdg-effect)](https://www.npmjs.com/package/xdg-effect)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
+[![TypeScript 6.0](https://img.shields.io/badge/TypeScript-6.0-3178c6)](https://www.typescriptlang.org/)
+[![Effect](https://img.shields.io/badge/Effect-3.21+-black)](https://effect.website/)
 
-You're welcome to clone or fork this template for your own use.
+Opinionated [Effect](https://effect.website/) library for XDG Base Directory support — from environment variable resolution through config file management to SQLite-backed caching and persistent state.
 
-## What's Included
+## What is xdg-effect?
 
-- **Build pipeline** — Dual-output builds (development + production) via
-  [Rslib](https://rslib.rs/) with automatic `package.json` transformation for
-  publishing
-- **Code quality** — [Biome](https://biomejs.dev/) for linting and formatting,
-  with git hooks for pre-commit checks and commit message validation
-- **Testing** — [Vitest](https://vitest.dev/) with v8 coverage
-- **Versioning** — [Changesets](https://github.com/changesets/changesets) for
-  version management and changelog generation
-- **CI/CD** — GitHub Actions for automated testing, building, and publishing
-  with provenance attestation
-- **TypeScript** — Strict mode, composite builds, ESM-first with `.js` import
-  extensions
+xdg-effect is an opinionated [Effect](https://effect.website/) library that brings full [XDG Base Directory](https://specifications.freedesktop.org/basedir-spec/latest/) support to Node.js applications. It covers the complete stack: reading XDG environment variables through Effect's `Config` module, resolving app-namespaced directories with multi-level precedence, loading and merging config files with pluggable codecs and strategies, generating JSON Schema for editor autocompletion, and optionally adding SQLite-backed key/value caching and managed state. Every capability is packaged as a composable `Layer`, so you adopt only what your application needs.
 
-## Quick Start
+## Features
 
-1. Click **"Use this template"** on GitHub (or clone the repo directly)
-2. Update `package.json` with your package name, repository URL, and homepage
-3. Update the `repo` field in `.changeset/config.json`
-4. Replace the placeholder code in `src/` with your own
-5. Install dependencies:
+- **XdgResolver** — Read XDG environment variables through Effect's `Config` module with typed fallbacks
+- **AppDirs** — Resolve app-namespaced directories with 4-level precedence (explicit, XDG, fallback directory, home fallback)
+- **ConfigFile** — Load and merge config files with pluggable codecs, resolvers, and strategies
+- **JsonSchemaExporter** — Generate JSON Schema from Effect Schema for editor autocompletion (with Tombi annotation support)
+- **SqliteCache** — Key/value cache with TTL, tag-based invalidation, and PubSub observability
+- **SqliteState** — Managed SQLite database with migration tracking
 
-   ```bash
-   pnpm install
-   ```
+## Quick Example
 
-6. Start developing:
+```typescript
+import { NodeFileSystem } from "@effect/platform-node";
+import { Effect, Schema } from "effect";
+import {
+  AppDirsConfig,
+  makeConfigFileTag,
+  TomlCodec,
+  FirstMatch,
+  XdgConfig,
+  UpwardWalk,
+  XdgConfigLive,
+} from "xdg-effect";
 
-   ```bash
-   pnpm run test:watch    # Run tests in watch mode
-   pnpm run lint:fix      # Auto-fix lint issues
-   pnpm run build         # Build dev + prod outputs
-   ```
+// 1. Define your config schema
+const MyConfig = Schema.Struct({
+  name: Schema.String,
+  port: Schema.Number,
+  debug: Schema.optional(Schema.Boolean, { default: () => false }),
+});
+type MyConfig = typeof MyConfig.Type;
 
-## Project Structure
+// 2. Create a typed service tag
+const MyConfigFile = makeConfigFileTag<MyConfig>("my-tool/Config");
 
-```text
-src/               Source code and tests
-lib/configs/       Shared tool configurations (commitlint, lint-staged, markdownlint)
-dist/dev/          Development build output
-dist/npm/          Production build output (published to registries)
-.github/workflows/ CI/CD workflows
-.changeset/        Changeset configuration
+// 3. Compose layers
+const layer = XdgConfigLive({
+  app: new AppDirsConfig({ namespace: "my-tool" }),
+  config: {
+    tag: MyConfigFile,
+    schema: MyConfig,
+    codec: TomlCodec,
+    strategy: FirstMatch,
+    resolvers: [
+      UpwardWalk({ filename: "my-tool.config.toml" }),
+      XdgConfig({ filename: "config.toml" }),
+    ],
+  },
+});
+
+// 4. Load config
+const program = Effect.gen(function* () {
+  const config = yield* MyConfigFile;
+  const value = yield* config.load;
+  console.log(value);
+});
+
+Effect.runPromise(
+  program.pipe(Effect.provide(layer), Effect.provide(NodeFileSystem.layer)),
+);
 ```
 
-## Publishing
+## Install
 
-Packages are published to both npm and GitHub Packages with provenance
-attestation. The build pipeline automatically transforms `package.json` for
-publishing — the source file stays `"private": true` and the builder handles the
-rest.
+```bash
+pnpm add xdg-effect effect @effect/platform @effect/platform-node
+```
 
-See the [Changesets documentation](https://github.com/changesets/changesets) for
-how versioning and releases work.
+For `SqliteCache` and `SqliteState`, also install the optional peer dependencies:
 
-## Claude Code
+```bash
+pnpm add @effect/sql @effect/sql-sqlite-node
+```
 
-This template includes configuration for
-[Claude Code](https://docs.anthropic.com/en/docs/claude-code). See
-[CLAUDE.md](CLAUDE.md) for details on the design-first development workflow.
+## Progressive Adoption
+
+| Layer | Services Provided | Requirements | Use When |
+| ----- | ----------------- | ------------ | -------- |
+| `XdgResolverLive` | `XdgResolver` | (none) | You only need raw XDG env vars |
+| `XdgLive(config)` | `XdgResolver`, `AppDirs` | `FileSystem` | You need app-namespaced directories |
+| `XdgConfigLive(options)` | `XdgResolver`, `AppDirs`, `ConfigFile` | `FileSystem` | You need config file loading |
+| `XdgFullLive(options)` | `XdgResolver`, `AppDirs`, `ConfigFile`, `SqliteCache`, `SqliteState` | `FileSystem`, `SqlClient` | You need the full stack |
+
+## Documentation
+
+1. [Getting Started](./docs/01-getting-started.md)
+2. [Resolving XDG Paths](./docs/02-resolving-xdg-paths.md)
+3. [Config Files](./docs/03-config-files.md)
+4. [JSON Schema Generation](./docs/04-json-schema-generation.md)
+5. [SQLite Cache](./docs/05-sqlite-cache.md)
+6. [SQLite State](./docs/06-sqlite-state.md)
+7. [Building a CLI](./docs/07-building-a-cli.md)
+8. [Testing](./docs/08-testing.md)
+9. [Error Handling](./docs/09-error-handling.md)
+10. [API Reference](./docs/10-api-reference.md)
+
+## API at a Glance
+
+### Services
+
+| Export | Kind | Guide |
+| ------ | ---- | ----- |
+| [`XdgResolver`](./docs/02-resolving-xdg-paths.md) | `Context.Tag` | Resolving XDG Paths |
+| [`AppDirs`](./docs/02-resolving-xdg-paths.md) | `Context.Tag` | Resolving XDG Paths |
+| [`makeConfigFileTag`](./docs/03-config-files.md) | function | Config Files |
+| [`JsonSchemaExporter`](./docs/04-json-schema-generation.md) | `Context.Tag` | JSON Schema Generation |
+| [`SqliteCache`](./docs/05-sqlite-cache.md) | `Context.Tag` | SQLite Cache |
+| [`SqliteState`](./docs/06-sqlite-state.md) | `Context.Tag` | SQLite State |
+
+### Layers
+
+| Export | Kind | Guide |
+| ------ | ---- | ----- |
+| [`XdgResolverLive`](./docs/02-resolving-xdg-paths.md) | `Layer` | Resolving XDG Paths |
+| [`AppDirsLive`](./docs/02-resolving-xdg-paths.md) | `Layer` | Resolving XDG Paths |
+| [`XdgLive`](./docs/02-resolving-xdg-paths.md) | `Layer` | Resolving XDG Paths |
+| [`makeConfigFileLive`](./docs/03-config-files.md) | function | Config Files |
+| [`XdgConfigLive`](./docs/03-config-files.md) | function | Config Files |
+| [`JsonSchemaExporterLive`](./docs/04-json-schema-generation.md) | `Layer` | JSON Schema Generation |
+| [`makeSqliteCacheLive`](./docs/05-sqlite-cache.md) | function | SQLite Cache |
+| [`makeSqliteStateLive`](./docs/06-sqlite-state.md) | function | SQLite State |
+| [`XdgFullLive`](./docs/01-getting-started.md) | function | Getting Started |
+
+### Codecs
+
+| Export | Kind | Guide |
+| ------ | ---- | ----- |
+| [`JsonCodec`](./docs/03-config-files.md) | `ConfigCodec` | Config Files |
+| [`TomlCodec`](./docs/03-config-files.md) | `ConfigCodec` | Config Files |
+
+### Resolvers
+
+| Export | Kind | Guide |
+| ------ | ---- | ----- |
+| [`ExplicitPath`](./docs/03-config-files.md) | `ConfigResolver` | Config Files |
+| [`StaticDir`](./docs/03-config-files.md) | `ConfigResolver` | Config Files |
+| [`UpwardWalk`](./docs/03-config-files.md) | `ConfigResolver` | Config Files |
+| [`WorkspaceRoot`](./docs/03-config-files.md) | `ConfigResolver` | Config Files |
+| [`XdgConfig`](./docs/03-config-files.md) | `ConfigResolver` | Config Files |
+
+### Strategies
+
+| Export | Kind | Guide |
+| ------ | ---- | ----- |
+| [`FirstMatch`](./docs/03-config-files.md) | `ConfigWalkStrategy` | Config Files |
+| [`LayeredMerge`](./docs/03-config-files.md) | `ConfigWalkStrategy` | Config Files |
+
+### Schemas
+
+| Export | Kind | Guide |
+| ------ | ---- | ----- |
+| [`AppDirsConfig`](./docs/02-resolving-xdg-paths.md) | `Schema.Class` | Resolving XDG Paths |
+| [`XdgPaths`](./docs/02-resolving-xdg-paths.md) | `Schema.Class` | Resolving XDG Paths |
+| [`ResolvedAppDirs`](./docs/02-resolving-xdg-paths.md) | `Schema.Class` | Resolving XDG Paths |
+| [`CacheEntry`](./docs/05-sqlite-cache.md) | `Schema.Class` | SQLite Cache |
+| [`CacheEvent`](./docs/05-sqlite-cache.md) | `Schema.Class` | SQLite Cache |
+| [`CacheEventPayload`](./docs/05-sqlite-cache.md) | `Schema.Class` | SQLite Cache |
+| [`MigrationStatus`](./docs/06-sqlite-state.md) | `Schema.Class` | SQLite State |
+| [`Written`](./docs/04-json-schema-generation.md) | function | JSON Schema Generation |
+| [`Unchanged`](./docs/04-json-schema-generation.md) | function | JSON Schema Generation |
+
+### Errors
+
+| Export | Kind | Guide |
+| ------ | ---- | ----- |
+| [`XdgError`](./docs/09-error-handling.md) | `TaggedError` | Error Handling |
+| [`AppDirsError`](./docs/09-error-handling.md) | `TaggedError` | Error Handling |
+| [`ConfigError`](./docs/09-error-handling.md) | `TaggedError` | Error Handling |
+| [`CodecError`](./docs/09-error-handling.md) | `TaggedError` | Error Handling |
+| [`JsonSchemaError`](./docs/09-error-handling.md) | `TaggedError` | Error Handling |
+| [`CacheError`](./docs/09-error-handling.md) | `TaggedError` | Error Handling |
+| [`StateError`](./docs/09-error-handling.md) | `TaggedError` | Error Handling |
+
+### Types
+
+| Export | Kind | Guide |
+| ------ | ---- | ----- |
+| [`XdgEffectError`](./docs/09-error-handling.md) | type | Error Handling |
+| [`ConfigCodec`](./docs/03-config-files.md) | type | Config Files |
+| [`ConfigResolver`](./docs/03-config-files.md) | type | Config Files |
+| [`ConfigWalkStrategy`](./docs/03-config-files.md) | type | Config Files |
+| [`ConfigSource`](./docs/03-config-files.md) | type | Config Files |
+| [`ConfigFileService`](./docs/03-config-files.md) | type | Config Files |
+| [`ConfigFileOptions`](./docs/03-config-files.md) | type | Config Files |
+| [`XdgConfigLiveOptions`](./docs/03-config-files.md) | type | Config Files |
+| [`XdgFullLiveOptions`](./docs/01-getting-started.md) | type | Getting Started |
+| [`AppDirsService`](./docs/02-resolving-xdg-paths.md) | type | Resolving XDG Paths |
+| [`XdgResolverService`](./docs/02-resolving-xdg-paths.md) | type | Resolving XDG Paths |
+| [`JsonSchemaExporterService`](./docs/04-json-schema-generation.md) | type | JSON Schema Generation |
+| [`JsonSchemaOutput`](./docs/04-json-schema-generation.md) | type | JSON Schema Generation |
+| [`SchemaEntry`](./docs/04-json-schema-generation.md) | type | JSON Schema Generation |
+| [`SqliteCacheService`](./docs/05-sqlite-cache.md) | type | SQLite Cache |
+| [`CacheEntryMeta`](./docs/05-sqlite-cache.md) | type | SQLite Cache |
+| [`PruneResult`](./docs/05-sqlite-cache.md) | type | SQLite Cache |
+| [`SqliteStateService`](./docs/06-sqlite-state.md) | type | SQLite State |
+| [`StateMigration`](./docs/06-sqlite-state.md) | type | SQLite State |
+| [`MigrationResult`](./docs/06-sqlite-state.md) | type | SQLite State |
+| [`WriteResult`](./docs/04-json-schema-generation.md) | type | JSON Schema Generation |
 
 ## License
 

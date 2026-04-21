@@ -1,78 +1,78 @@
-# Contributing to Claude Design Coordinator
+# Contributing to xdg-effect
 
-Thank you for your interest in contributing to Claude Design Coordinator! This
-document provides guidelines and instructions for development.
+Thank you for your interest in contributing to xdg-effect! This document
+provides guidelines and instructions for development.
 
 ## Prerequisites
 
-- Node.js 20+
+- Node.js 22+ (24 recommended)
 - pnpm 10+
 
 ## Development Setup
 
 ```bash
 # Clone the repository
-git clone https://github.com/spencerbeggs/claude-design-coordinator.git
-cd claude-design-coordinator
+git clone https://github.com/spencerbeggs/xdg-effect.git
+cd xdg-effect
 
 # Install dependencies
 pnpm install
 
-# Build all packages
-pnpm run build
-
 # Run tests
 pnpm run test
-```
 
-## Running Locally
-
-```bash
-# Start the server (from built output)
-node pkgs/claude-coordinator-server/dist/dev/bin/cli.js
-
-# In another terminal, test the MCP bridge
-node pkgs/claude-coordinator-mcp/dist/dev/bin/cli.js
+# Build all outputs
+pnpm run build
 ```
 
 ## Project Structure
 
 ```text
-claude-design-coordinator/
-├── pkgs/
-│   ├── claude-coordinator-core/    # Zod schemas and TypeScript types
-│   ├── claude-coordinator-server/  # tRPC WebSocket server
-│   └── claude-coordinator-mcp/     # MCP stdio bridge
-├── lib/
-│   └── configs/                    # Shared configuration files
-└── ...
+xdg-effect/
+├── src/
+│   ├── index.ts              # Single barrel export
+│   ├── codecs/               # Pluggable config file format parsers
+│   ├── errors/               # Data.TaggedError types
+│   ├── layers/               # Layer.Layer implementations
+│   ├── resolvers/            # Config file location strategies
+│   ├── schemas/              # Effect Schema classes
+│   ├── services/             # Context.Tag service interfaces
+│   └── strategies/           # Config resolution merge strategies
+├── __test__/                 # Test files
+├── docs/                     # User-facing guides
+└── lib/configs/              # Shared tool configurations
 ```
 
 ## Available Scripts
 
 | Script | Description |
 | ------ | ----------- |
-| `pnpm run build` | Build all packages (dev + prod) |
+| `pnpm run build` | Build dev + prod outputs via Turbo |
 | `pnpm run test` | Run all tests |
+| `pnpm run test:watch` | Run tests in watch mode |
+| `pnpm run test:coverage` | Run tests with v8 coverage |
 | `pnpm run lint` | Check code with Biome |
 | `pnpm run lint:fix` | Auto-fix lint issues |
-| `pnpm run typecheck` | Type-check all workspaces |
+| `pnpm run lint:md` | Check markdown with markdownlint |
+| `pnpm run typecheck` | Type-check via tsgo |
 
 ## Code Quality
 
 This project uses:
 
 - **Biome** for linting and formatting
-- **Commitlint** for enforcing conventional commits
+- **Commitlint** for enforcing conventional commits with DCO signoff
 - **Husky** for Git hooks
+- **markdownlint** for markdown files
 
 ### Commit Format
 
-All commits must follow the [Conventional Commits](https://conventionalcommits.org)
-specification and include a DCO signoff:
+All commits must follow the
+[Conventional Commits](https://conventionalcommits.org) specification and
+include a DCO signoff:
 
 ```text
-feat: add new coordinator tool
+feat(resolver): add custom config resolver
 
 Signed-off-by: Your Name <your.email@example.com>
 ```
@@ -81,13 +81,13 @@ Signed-off-by: Your Name <your.email@example.com>
 
 The following checks run automatically:
 
-- **pre-commit**: Runs lint-staged
-- **commit-msg**: Validates commit message format
+- **pre-commit**: Runs lint-staged (Biome on staged files)
+- **commit-msg**: Validates commit message format via commitlint
 - **pre-push**: Runs tests for affected packages
 
 ## Testing
 
-Tests use [Vitest](https://vitest.dev) with v8 coverage.
+Tests use [Vitest](https://vitest.dev) with v8 coverage and the `forks` pool.
 
 ```bash
 # Run all tests
@@ -99,28 +99,27 @@ pnpm run test:watch
 # Run tests with coverage
 pnpm run test:coverage
 
-# Run tests for a specific package
-pnpm run test -- --filter=@spencerbeggs/claude-coordinator-core
+# Run a specific test file
+pnpm vitest run __test__/config-file.test.ts
 ```
 
 ## TypeScript
 
-- Composite builds with project references
-- Strict mode enabled
-- ES2022/ES2023 targets
-- Import extensions required (`.js` for ESM)
+- Strict mode with `strictNullChecks` and `exactOptionalPropertyTypes`
+- ES2023 target, NodeNext module resolution
+- `verbatimModuleSyntax` enabled
 
 ### Import Conventions
 
 ```typescript
 // Use .js extensions for relative imports (ESM requirement)
-import { AgentSchema } from "./schemas/agent.js";
+import { AppDirsLive } from "./layers/AppDirsLive.js";
 
 // Use node: protocol for Node.js built-ins
-import { EventEmitter } from "node:events";
+import { homedir } from "node:os";
 
 // Separate type imports
-import type { Agent } from "./schemas/agent.js";
+import type { ConfigCodec } from "./codecs/ConfigCodec.js";
 ```
 
 ## Submitting Changes
@@ -132,6 +131,12 @@ import type { Agent } from "./schemas/agent.js";
 5. Run linting: `pnpm run lint:fix`
 6. Commit with conventional format and DCO signoff
 7. Push and open a pull request
+
+## Documentation
+
+User-facing documentation lives in `docs/`. If your change modifies the public
+API (new exports, changed signatures, new services), update the relevant guide
+and the API reference at `docs/10-api-reference.md`.
 
 ## License
 
