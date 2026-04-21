@@ -4,6 +4,24 @@ settings:
   autoInstallPeers: true
   excludeLinksFromLockfile: false
 
+catalogs:
+  silkPeers:
+    '@effect/platform':
+      specifier: '>=0.96.0'
+      version: 0.96.0
+    '@effect/platform-node':
+      specifier: '>=0.106.0'
+      version: 0.106.0
+    '@effect/sql':
+      specifier: '>=0.51.0'
+      version: 0.51.0
+    '@effect/sql-sqlite-node':
+      specifier: '>=0.52.0'
+      version: 0.52.0
+    effect:
+      specifier: '>=3.21.0'
+      version: 3.21.0
+
 overrides:
   '@isaacs/brace-expansion': ^5.0.1
   lodash: ^4.17.23
@@ -23,16 +41,16 @@ importers:
         version: 1.6.1
     devDependencies:
       '@effect/platform':
-        specifier: ^0.96.0
+        specifier: catalog:silkPeers
         version: 0.96.0(effect@3.21.0)
       '@effect/platform-node':
-        specifier: ^0.106.0
+        specifier: catalog:silkPeers
         version: 0.106.0(@effect/cluster@0.58.0(@effect/platform@0.96.0(effect@3.21.0))(@effect/rpc@0.75.0(@effect/platform@0.96.0(effect@3.21.0))(effect@3.21.0))(@effect/sql@0.51.0(@effect/experimental@0.60.0(@effect/platform@0.96.0(effect@3.21.0))(effect@3.21.0))(@effect/platform@0.96.0(effect@3.21.0))(effect@3.21.0))(@effect/workflow@0.18.0(@effect/experimental@0.60.0(@effect/platform@0.96.0(effect@3.21.0))(effect@3.21.0))(@effect/platform@0.96.0(effect@3.21.0))(@effect/rpc@0.75.0(@effect/platform@0.96.0(effect@3.21.0))(effect@3.21.0))(effect@3.21.0))(effect@3.21.0))(@effect/platform@0.96.0(effect@3.21.0))(@effect/rpc@0.75.0(@effect/platform@0.96.0(effect@3.21.0))(effect@3.21.0))(@effect/sql@0.51.0(@effect/experimental@0.60.0(@effect/platform@0.96.0(effect@3.21.0))(effect@3.21.0))(@effect/platform@0.96.0(effect@3.21.0))(effect@3.21.0))(effect@3.21.0)
       '@effect/sql':
-        specifier: ^0.51.0
+        specifier: catalog:silkPeers
         version: 0.51.0(@effect/experimental@0.60.0(@effect/platform@0.96.0(effect@3.21.0))(effect@3.21.0))(@effect/platform@0.96.0(effect@3.21.0))(effect@3.21.0)
       '@effect/sql-sqlite-node':
-        specifier: ^0.52.0
+        specifier: catalog:silkPeers
         version: 0.52.0(@effect/experimental@0.60.0(@effect/platform@0.96.0(effect@3.21.0))(effect@3.21.0))(@effect/platform@0.96.0(effect@3.21.0))(@effect/sql@0.51.0(@effect/experimental@0.60.0(@effect/platform@0.96.0(effect@3.21.0))(effect@3.21.0))(@effect/platform@0.96.0(effect@3.21.0))(effect@3.21.0))(effect@3.21.0)
       '@savvy-web/changesets':
         specifier: ^0.8.0
@@ -50,7 +68,7 @@ importers:
         specifier: ^1.3.0
         version: 1.3.0(c59e02b5392d8bdc74c64d21147d0035)
       effect:
-        specifier: ^3.21.0
+        specifier: catalog:silkPeers
         version: 3.21.0
     publishDirectory: dist/dev
 

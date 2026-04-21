@@ -1,11 +1,11 @@
 ---
-status: draft
+status: current
 module: xdg-effect
 category: architecture
 created: 2026-04-20
 updated: 2026-04-20
 last-synced: 2026-04-20
-completeness: 70
+completeness: 75
 related: []
 dependencies: []
 ---
@@ -1094,6 +1094,22 @@ to prevent cross-test contamination.
 
 ## Related Documentation
 
+**User-Facing Documentation:**
+
+- `README.md` -- Landing page with install, quick example, progressive adoption
+  table, and API reference tables
+- `docs/01-getting-started.md` -- Installation, first example, progressive
+  adoption guide
+- `docs/02-resolving-xdg-paths.md` -- XdgResolver + AppDirs usage
+- `docs/03-config-files.md` -- ConfigFile with codecs, resolvers, strategies
+- `docs/04-json-schema-generation.md` -- JsonSchemaExporter usage
+- `docs/05-sqlite-cache.md` -- SqliteCache with TTL, tags, PubSub
+- `docs/06-sqlite-state.md` -- SqliteState with migrations
+- `docs/07-building-a-cli.md` -- @effect/cli integration patterns
+- `docs/08-testing.md` -- Testing patterns with ConfigProvider and temp dirs
+- `docs/09-error-handling.md` -- Tagged error types and recovery strategies
+- `docs/10-api-reference.md` -- Complete API surface reference
+
 **Package Documentation:**
 
 - `package.json` -- Package metadata, peer dependencies, publish targets
@@ -1108,10 +1124,12 @@ to prevent cross-test contamination.
 
 ---
 
-**Document Status:** Draft at 70% completeness. All major sections are
+**Document Status:** Current at 75% completeness. All major sections are
 populated from the actual implementation. Sections that could benefit from
-additional detail: per-test coverage breakdown, usage examples for each
-aggregate layer, and performance characteristics of SQLite operations.
+additional detail: per-test coverage breakdown, performance characteristics
+of SQLite operations, and cross-references to the user-facing docs for
+usage examples (the guides in `docs/` now cover aggregate layer usage
+extensively).
 
 **Next Steps:**
 
