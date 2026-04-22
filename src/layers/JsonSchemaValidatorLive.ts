@@ -14,6 +14,20 @@ const loadAjv = async (): Promise<new (opts: AjvOptions) => AjvInstance> => {
 	return (mod.default?.default ?? mod.default ?? mod) as any;
 };
 
+/**
+ * All `x-tombi-*` annotation keywords produced by the `tombi()` helper.
+ * Registered with Ajv before compilation so that strict mode does not reject
+ * them as unknown keywords.
+ */
+const TOMBI_KEYWORDS = [
+	"x-tombi-additional-key-label",
+	"x-tombi-table-keys-order",
+	"x-tombi-array-values-order",
+	"x-tombi-array-values-order-by",
+	"x-tombi-string-formats",
+	"x-tombi-toml-version",
+] as const;
+
 const checkMissingAdditionalProperties = (schema: Record<string, unknown>, path: string): ReadonlyArray<string> => {
 	const errors: string[] = [];
 
@@ -78,7 +92,10 @@ export const JsonSchemaValidatorLiveImpl = (): Layer.Layer<JsonSchemaValidator> 
 					const strict = options?.strict ?? false;
 
 					const AjvCtor = yield* Effect.promise(loadAjv);
-					const ajv = new AjvCtor({ strict, allErrors: true });
+					const ajv = new AjvCtor({ strict, strictTypes: false, allErrors: true });
+					for (const keyword of TOMBI_KEYWORDS) {
+						ajv.addKeyword(keyword);
+					}
 					try {
 						ajv.compile(output.schema);
 					} catch (e) {
@@ -105,7 +122,10 @@ export const JsonSchemaValidatorLiveImpl = (): Layer.Layer<JsonSchemaValidator> 
 					const allErrors: string[] = [];
 					const strict = options?.strict ?? false;
 					const AjvCtor = yield* Effect.promise(loadAjv);
-					const ajv = new AjvCtor({ strict, allErrors: true });
+					const ajv = new AjvCtor({ strict, strictTypes: false, allErrors: true });
+					for (const keyword of TOMBI_KEYWORDS) {
+						ajv.addKeyword(keyword);
+					}
 
 					for (const output of outputs) {
 						try {
