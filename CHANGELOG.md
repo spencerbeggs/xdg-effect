@@ -1,5 +1,11 @@
 # xdg-effect
 
+## 0.3.1
+
+### Bug Fixes
+
+* [`5f26fa3`](https://github.com/spencerbeggs/xdg-effect/commit/5f26fa367fb2f68ec496234e2ce3842f27cb36bd) Register x-tombi-\* keywords with Ajv during validation
+
 ## 0.3.0
 
 ### Features
