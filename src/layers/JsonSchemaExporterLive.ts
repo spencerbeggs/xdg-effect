@@ -131,7 +131,16 @@ const generateOne = (entry: SchemaEntry): Effect.Effect<JsonSchemaOutput, JsonSc
 					cleaned[key] = value;
 				}
 			}
-			return { name: entry.name, schema: cleaned };
+			// Reorder so $schema and $id appear first
+			const ordered: Record<string, unknown> = {};
+			if (cleaned.$schema !== undefined) ordered.$schema = cleaned.$schema;
+			if (cleaned.$id !== undefined) ordered.$id = cleaned.$id;
+			for (const [key, value] of Object.entries(cleaned)) {
+				if (key !== "$schema" && key !== "$id") {
+					ordered[key] = value;
+				}
+			}
+			return { name: entry.name, schema: ordered };
 		},
 		catch: (error) =>
 			new JsonSchemaError({

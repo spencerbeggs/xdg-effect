@@ -156,6 +156,27 @@ describe("schema generation snapshots", () => {
 		expect(result.schema).not.toHaveProperty("required");
 	});
 
+	it("places $id immediately after $schema in serialized output", async () => {
+		const Config = Schema.Struct({
+			host: Schema.String,
+			port: Schema.Number,
+		});
+		const result = await runExporter(
+			Effect.gen(function* () {
+				const exporter = yield* JsonSchemaExporter;
+				return yield* exporter.generate({
+					name: "IdOrder",
+					schema: Config,
+					rootDefName: "IdOrder",
+					$id: "https://json.schemastore.org/id-order.json",
+					annotations: { "x-tombi-toml-version": "v1.1.0" },
+				});
+			}),
+		);
+		const serialized = JSON.stringify(result.schema, null, "\t");
+		expect(serialized).toMatchSnapshot();
+	});
+
 	it("generates with tombi annotations", async () => {
 		const Config = Schema.Struct({ name: Schema.String });
 		const result = await runExporter(
