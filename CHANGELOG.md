@@ -1,5 +1,11 @@
 # xdg-effect
 
+## 0.3.2
+
+### Bug Fixes
+
+* [`59b3bb6`](https://github.com/spencerbeggs/xdg-effect/commit/59b3bb6e0bd8ca43734fcbd91a93b944a79ac2c7) Fixed `JsonSchemaExporter` placing `$id` at the end of the root schema object instead of immediately after `$schema`. Generated schemas now consistently order `$schema` and `$id` as the first two keys, matching the conventional layout expected by schema registries and tooling. Closes #11.
+
 ## 0.3.1
 
 ### Bug Fixes

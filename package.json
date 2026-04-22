@@ -1,6 +1,6 @@
 {
 	"name": "xdg-effect",
-	"version": "0.3.1",
+	"version": "0.3.2",
 	"private": true,
 	"description": "Opinionated Effect library for XDG Base Directory support — composable layers from path resolution through config management to SQLite-backed caching and state.",
 	"keywords": [
