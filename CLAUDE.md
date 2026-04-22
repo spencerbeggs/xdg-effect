@@ -17,6 +17,7 @@ config file management to SQLite-backed caching and persistent state.
 | AppDirs | App-namespaced directory resolution with 4-level precedence; `ensure*` methods create directories on demand |
 | ConfigFile | Pluggable config loading with `loadOrDefault`, `save`, `update` convenience methods |
 | JsonSchemaExporter | JSON Schema generation with Tombi annotation support |
+| JsonSchemaValidator | Ajv-based validation with strict-mode SchemaStore/Tombi checks |
 | SqliteCache | KV cache with TTL, tags, PubSub observability |
 | SqliteState | Managed SQLite with user migrations |
 
@@ -33,6 +34,7 @@ AppDirs.Live(config)                    // Layer.Layer<AppDirs, never, XdgResolv
 ConfigFile.Tag<A>(id)                   // Context.GenericTag for parameterized service
 ConfigFile.Live<A>(options)             // Layer.Layer<ConfigFileService<A>, never, FileSystem>
 JsonSchemaExporter.Live                 // Layer.Layer<JsonSchemaExporter, never, FileSystem>
+JsonSchemaValidator.Live                // Layer.Layer<JsonSchemaValidator> (dynamic import of ajv)
 SqliteCache.Live()                      // Layer.Layer<SqliteCache, never, SqlClient>
 SqliteState.Live({ migrations })        // Layer.Layer<SqliteState, never, SqlClient>
 
@@ -41,6 +43,7 @@ XdgResolver.Test(options?)              // Scoped temp dirs, no real env vars
 AppDirs.Test({ namespace, ... })        // Includes XdgResolver.Test + NodeFileSystem
 ConfigFile.Test<A>(options)             // Pre-populated temp directory
 JsonSchemaExporter.Test                 // Scoped temp directory
+JsonSchemaValidator.Test                // In-memory Ajv instance
 SqliteCache.Test()                      // In-memory SQLite
 SqliteState.Test({ migrations })        // In-memory SQLite
 ```
@@ -55,7 +58,7 @@ above instead.
 - **Runtime:** `effect`, `@effect/platform`, `smol-toml`
 - **Peer (required):** `@effect/platform`, `@effect/platform-node`, `effect`
 - **Peer (optional):** `@effect/sql`, `@effect/sql-sqlite-node` (only for
-  SqliteCache/SqliteState)
+  SqliteCache/SqliteState); `ajv` (only for JsonSchemaValidator)
 
 ### Source Layout
 
@@ -64,9 +67,10 @@ src/
   index.ts              # Single barrel export
   codecs/               # Pluggable config file format parsers (JSON, TOML)
   errors/               # Data.TaggedError types with Base exports
+  helpers/              # Annotation helpers (tombi, taplo) for TOML tooling
   layers/               # Layer implementations (*Live.ts and *Test.ts)
   resolvers/            # Config file location strategies (5 built-in + XdgSavePath)
-  schemas/              # Effect Schema classes (data shapes)
+  schemas/              # Effect Schema classes (data shapes + Jsonifiable, JsonSchemaClass)
   services/             # Context.Tag service interfaces (with .Live/.Test statics)
   strategies/           # Config resolution merge strategies
 ```
@@ -74,8 +78,9 @@ src/
 ### User Documentation
 
 Progressive guides live in `docs/` (01-getting-started through
-10-api-reference). Keep these consistent when changing public API surface,
-adding services, or modifying layer composition.
+11-api-reference, with 05-json-schema-advanced covering SchemaStore compat,
+helpers, validator, and JsonSchemaClass). Keep these consistent when changing
+public API surface, adding services, or modifying layer composition.
 
 ### Design Documentation
 
@@ -83,7 +88,9 @@ adding services, or modifying layer composition.
 -> `@./.claude/design/xdg-effect/architecture.md`
 
 Load when working on service interfaces, layer wiring, adding new
-codecs/resolvers/strategies, or debugging dependency graph issues.
+codecs/resolvers/strategies, JSON Schema generation/validation, or
+debugging dependency graph issues.
+**Do NOT load unless directly relevant to your task.**
 
 ## Build Pipeline
 
@@ -173,7 +180,7 @@ pnpm run build:inspect     # Inspect production build config (verbose)
 ### Running a Specific Test
 
 ```bash
-pnpm vitest run src/index.test.ts
+pnpm vitest run __test__/json-schema-exporter.test.ts
 ```
 
 ## Code Quality and Hooks

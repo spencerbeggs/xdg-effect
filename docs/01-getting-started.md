@@ -104,12 +104,13 @@ If `XDG_CONFIG_HOME` is not set, the `configHome` branch prints `(not set, will 
 - [Resolving XDG Paths](./02-resolving-xdg-paths.md) — AppDirs service, 4-level precedence, directory creation
 - [Config Files](./03-config-files.md) — Codecs, resolvers, strategies, config loading
 - [JSON Schema Generation](./04-json-schema-generation.md) — Editor autocompletion for config files
-- [SQLite Cache](./05-sqlite-cache.md) — TTL cache with tag invalidation
-- [SQLite State](./06-sqlite-state.md) — Managed database with migrations
-- [Building a CLI](./07-building-a-cli.md) — @effect/cli integration
-- [Testing](./08-testing.md) — Testing patterns with ConfigProvider and in-memory FS
-- [Error Handling](./09-error-handling.md) — Typed errors and recovery patterns
-- [API Reference](./10-api-reference.md) — Complete export reference
+- [JSON Schema Advanced](./05-json-schema-advanced.md) — Validation, annotation helpers, JsonSchemaClass factory
+- [SQLite Cache](./06-sqlite-cache.md) — TTL cache with tag invalidation
+- [SQLite State](./07-sqlite-state.md) — Managed database with migrations
+- [Building a CLI](./08-building-a-cli.md) — @effect/cli integration
+- [Testing](./09-testing.md) — Testing patterns with ConfigProvider and in-memory FS
+- [Error Handling](./10-error-handling.md) — Typed errors and recovery patterns
+- [API Reference](./11-api-reference.md) — Complete export reference
 
 ---
 

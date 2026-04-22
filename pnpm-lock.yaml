@@ -67,6 +67,9 @@ importers:
       '@savvy-web/vitest':
         specifier: ^1.3.0
         version: 1.3.0(c59e02b5392d8bdc74c64d21147d0035)
+      ajv:
+        specifier: ^8.18.0
+        version: 8.18.0
       effect:
         specifier: catalog:silkPeers
         version: 3.21.0

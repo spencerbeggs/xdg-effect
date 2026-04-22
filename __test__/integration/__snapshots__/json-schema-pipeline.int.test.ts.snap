@@ -1,0 +1,318 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`E2E pipeline > Jsonifiable field produces clean empty object in written file 1`] = `
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "additionalProperties": false,
+  "properties": {
+    "metadata": {},
+    "name": {
+      "type": "string",
+    },
+  },
+  "required": [
+    "name",
+    "metadata",
+  ],
+  "type": "object",
+}
+`;
+
+exports[`E2E pipeline > full pipeline: generate -> strict validate -> write -> read back 1`] = `
+{
+  "$id": "https://json.schemastore.org/app-config.json",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "additionalProperties": false,
+  "properties": {
+    "debug": {
+      "type": "boolean",
+    },
+    "host": {
+      "type": "string",
+    },
+    "port": {
+      "type": "number",
+    },
+  },
+  "required": [
+    "host",
+    "port",
+  ],
+  "type": "object",
+}
+`;
+
+exports[`JsonSchemaClass integration > extended class schema includes extended fields 1`] = `
+{
+  "$id": "https://json.schemastore.org/test-app-config.json",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "additionalProperties": false,
+  "properties": {
+    "debug": {
+      "type": "boolean",
+    },
+    "extra": {
+      "type": "string",
+    },
+    "name": {
+      "type": "string",
+    },
+    "port": {
+      "type": "number",
+    },
+  },
+  "required": [
+    "name",
+    "port",
+    "extra",
+  ],
+  "type": "object",
+}
+`;
+
+exports[`JsonSchemaClass integration > schemaEntry generates correct schema via exporter 1`] = `
+{
+  "$id": "https://json.schemastore.org/test-app-config.json",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "additionalProperties": false,
+  "properties": {
+    "debug": {
+      "type": "boolean",
+    },
+    "name": {
+      "type": "string",
+    },
+    "port": {
+      "type": "number",
+    },
+  },
+  "required": [
+    "name",
+    "port",
+  ],
+  "type": "object",
+}
+`;
+
+exports[`JsonSchemaClass integration > toJson output matches snapshot 1`] = `
+{
+  "$schema": "https://json.schemastore.org/test-app-config.json",
+  "debug": false,
+  "name": "my-app",
+  "port": 8080,
+}
+`;
+
+exports[`schema generation snapshots > generates a Record schema (cleanup removes empty properties) 1`] = `
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "additionalProperties": {
+    "type": "string",
+  },
+  "type": "object",
+}
+`;
+
+exports[`schema generation snapshots > generates a basic struct schema 1`] = `
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "additionalProperties": false,
+  "properties": {
+    "debug": {
+      "type": "boolean",
+    },
+    "name": {
+      "type": "string",
+    },
+    "port": {
+      "type": "number",
+    },
+  },
+  "required": [
+    "name",
+    "port",
+  ],
+  "type": "object",
+}
+`;
+
+exports[`schema generation snapshots > generates a struct with $id 1`] = `
+{
+  "$id": "https://json.schemastore.org/my-config.json",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "additionalProperties": false,
+  "properties": {
+    "host": {
+      "type": "string",
+    },
+    "port": {
+      "type": "number",
+    },
+  },
+  "required": [
+    "host",
+    "port",
+  ],
+  "type": "object",
+}
+`;
+
+exports[`schema generation snapshots > generates a struct with Jsonifiable field (no $id artifacts) 1`] = `
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "additionalProperties": false,
+  "properties": {
+    "name": {
+      "type": "string",
+    },
+    "options": {},
+  },
+  "required": [
+    "name",
+    "options",
+  ],
+  "type": "object",
+}
+`;
+
+exports[`schema generation snapshots > generates a struct with Schema.Unknown field (cleanup strips artifacts) 1`] = `
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "additionalProperties": false,
+  "properties": {
+    "metadata": {},
+    "name": {
+      "type": "string",
+    },
+  },
+  "required": [
+    "name",
+    "metadata",
+  ],
+  "type": "object",
+}
+`;
+
+exports[`schema generation snapshots > generates a struct with all-optional fields (cleanup removes empty required) 1`] = `
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "additionalProperties": false,
+  "properties": {
+    "debug": {
+      "type": "boolean",
+    },
+    "name": {
+      "type": "string",
+    },
+  },
+  "type": "object",
+}
+`;
+
+exports[`schema generation snapshots > generates multiple schemas with generateMany 1`] = `
+[
+  {
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "additionalProperties": false,
+    "properties": {
+      "id": {
+        "type": "number",
+      },
+    },
+    "required": [
+      "id",
+    ],
+    "type": "object",
+  },
+  {
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "additionalProperties": false,
+    "properties": {
+      "name": {
+        "type": "string",
+      },
+      "tags": {
+        "items": {
+          "type": "string",
+        },
+        "type": "array",
+      },
+    },
+    "required": [
+      "name",
+      "tags",
+    ],
+    "type": "object",
+  },
+]
+`;
+
+exports[`schema generation snapshots > generates with combined tombi + taplo annotations 1`] = `
+{
+  "$id": "https://json.schemastore.org/combined.json",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "additionalProperties": false,
+  "properties": {
+    "name": {
+      "type": "string",
+    },
+    "version": {
+      "type": "string",
+    },
+  },
+  "required": [
+    "name",
+    "version",
+  ],
+  "type": "object",
+  "x-taplo": {
+    "initKeys": [
+      "name",
+      "version",
+    ],
+  },
+  "x-tombi-toml-version": "v1.0.0",
+}
+`;
+
+exports[`schema generation snapshots > generates with taplo annotations 1`] = `
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "additionalProperties": false,
+  "properties": {
+    "name": {
+      "type": "string",
+    },
+  },
+  "required": [
+    "name",
+  ],
+  "type": "object",
+  "x-taplo": {
+    "docs": {
+      "main": "Application configuration",
+    },
+    "initKeys": [
+      "name",
+    ],
+  },
+}
+`;
+
+exports[`schema generation snapshots > generates with tombi annotations 1`] = `
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "additionalProperties": false,
+  "properties": {
+    "name": {
+      "type": "string",
+    },
+  },
+  "required": [
+    "name",
+  ],
+  "type": "object",
+  "x-tombi-table-keys-order": "schema",
+  "x-tombi-toml-version": "v1.0.0",
+}
+`;

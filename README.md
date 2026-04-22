@@ -16,7 +16,8 @@ xdg-effect is an opinionated [Effect](https://effect.website/) library that brin
 - **XdgResolver** — Read XDG environment variables through Effect's `Config` module with typed fallbacks
 - **AppDirs** — Resolve app-namespaced directories with 4-level precedence (explicit, XDG, fallback directory, home fallback)
 - **ConfigFile** — Load and merge config files with pluggable codecs, resolvers, and strategies
-- **JsonSchemaExporter** — Generate JSON Schema from Effect Schema for editor autocompletion (with Tombi annotation support)
+- **JsonSchemaExporter** — Generate JSON Schema from Effect Schema for editor autocompletion (with Tombi/Taplo annotation support)
+- **JsonSchemaValidator** — Validate generated schemas with Ajv strict mode for SchemaStore/Tombi compatibility
 - **SqliteCache** — Key/value cache with TTL, tag-based invalidation, and PubSub observability
 - **SqliteState** — Managed SQLite database with migration tracking
 
@@ -85,6 +86,12 @@ For `SqliteCache` and `SqliteState`, also install the optional peer dependencies
 pnpm add @effect/sql @effect/sql-sqlite-node
 ```
 
+For `JsonSchemaValidator`, also install the optional peer dependency:
+
+```bash
+pnpm add ajv
+```
+
 ## Progressive Adoption
 
 | Layer | Services Provided | Requirements | Use When |
@@ -100,12 +107,13 @@ pnpm add @effect/sql @effect/sql-sqlite-node
 2. [Resolving XDG Paths](./docs/02-resolving-xdg-paths.md)
 3. [Config Files](./docs/03-config-files.md)
 4. [JSON Schema Generation](./docs/04-json-schema-generation.md)
-5. [SQLite Cache](./docs/05-sqlite-cache.md)
-6. [SQLite State](./docs/06-sqlite-state.md)
-7. [Building a CLI](./docs/07-building-a-cli.md)
-8. [Testing](./docs/08-testing.md)
-9. [Error Handling](./docs/09-error-handling.md)
-10. [API Reference](./docs/10-api-reference.md)
+5. [JSON Schema Advanced](./docs/05-json-schema-advanced.md)
+6. [SQLite Cache](./docs/06-sqlite-cache.md)
+7. [SQLite State](./docs/07-sqlite-state.md)
+8. [Building a CLI](./docs/08-building-a-cli.md)
+9. [Testing](./docs/09-testing.md)
+10. [Error Handling](./docs/10-error-handling.md)
+11. [API Reference](./docs/11-api-reference.md)
 
 ## API at a Glance
 
@@ -117,8 +125,9 @@ pnpm add @effect/sql @effect/sql-sqlite-node
 | [`AppDirs`](./docs/02-resolving-xdg-paths.md) | `Context.Tag` | Resolving XDG Paths |
 | [`ConfigFile.Tag`](./docs/03-config-files.md) | factory | Config Files |
 | [`JsonSchemaExporter`](./docs/04-json-schema-generation.md) | `Context.Tag` | JSON Schema Generation |
-| [`SqliteCache`](./docs/05-sqlite-cache.md) | `Context.Tag` | SQLite Cache |
-| [`SqliteState`](./docs/06-sqlite-state.md) | `Context.Tag` | SQLite State |
+| [`JsonSchemaValidator`](./docs/05-json-schema-advanced.md) | `Context.Tag` | JSON Schema Advanced |
+| [`SqliteCache`](./docs/06-sqlite-cache.md) | `Context.Tag` | SQLite Cache |
+| [`SqliteState`](./docs/07-sqlite-state.md) | `Context.Tag` | SQLite State |
 
 ### Layers
 
@@ -130,8 +139,9 @@ pnpm add @effect/sql @effect/sql-sqlite-node
 | [`ConfigFile.Live`](./docs/03-config-files.md) | factory | Config Files |
 | [`XdgConfigLive`](./docs/03-config-files.md) | function | Config Files |
 | [`JsonSchemaExporter.Live`](./docs/04-json-schema-generation.md) | `Layer` | JSON Schema Generation |
-| [`SqliteCache.Live`](./docs/05-sqlite-cache.md) | factory | SQLite Cache |
-| [`SqliteState.Live`](./docs/06-sqlite-state.md) | factory | SQLite State |
+| [`JsonSchemaValidator.Live`](./docs/05-json-schema-advanced.md) | `Layer` | JSON Schema Advanced |
+| [`SqliteCache.Live`](./docs/06-sqlite-cache.md) | factory | SQLite Cache |
+| [`SqliteState.Live`](./docs/07-sqlite-state.md) | factory | SQLite State |
 | [`XdgFullLive`](./docs/01-getting-started.md) | function | Getting Started |
 
 ### Codecs
@@ -166,49 +176,66 @@ pnpm add @effect/sql @effect/sql-sqlite-node
 | [`AppDirsConfig`](./docs/02-resolving-xdg-paths.md) | `Schema.Class` | Resolving XDG Paths |
 | [`XdgPaths`](./docs/02-resolving-xdg-paths.md) | `Schema.Class` | Resolving XDG Paths |
 | [`ResolvedAppDirs`](./docs/02-resolving-xdg-paths.md) | `Schema.Class` | Resolving XDG Paths |
-| [`CacheEntry`](./docs/05-sqlite-cache.md) | `Schema.Class` | SQLite Cache |
-| [`CacheEvent`](./docs/05-sqlite-cache.md) | `Schema.Class` | SQLite Cache |
-| [`CacheEventPayload`](./docs/05-sqlite-cache.md) | `Schema.Class` | SQLite Cache |
-| [`MigrationStatus`](./docs/06-sqlite-state.md) | `Schema.Class` | SQLite State |
+| [`Jsonifiable`](./docs/04-json-schema-generation.md) | `Schema` | JSON Schema Generation |
+| [`JsonSchemaClass`](./docs/05-json-schema-advanced.md) | factory | JSON Schema Advanced |
+| [`CacheEntry`](./docs/06-sqlite-cache.md) | `Schema.Class` | SQLite Cache |
+| [`CacheEvent`](./docs/06-sqlite-cache.md) | `Schema.Class` | SQLite Cache |
+| [`CacheEventPayload`](./docs/06-sqlite-cache.md) | `Schema.Class` | SQLite Cache |
+| [`MigrationStatus`](./docs/07-sqlite-state.md) | `Schema.Class` | SQLite State |
 | [`Written`](./docs/04-json-schema-generation.md) | function | JSON Schema Generation |
 | [`Unchanged`](./docs/04-json-schema-generation.md) | function | JSON Schema Generation |
+
+### Helpers
+
+| Export | Kind | Guide |
+| ------ | ---- | ----- |
+| [`tombi`](./docs/05-json-schema-advanced.md) | function | JSON Schema Advanced |
+| [`taplo`](./docs/05-json-schema-advanced.md) | function | JSON Schema Advanced |
 
 ### Errors
 
 | Export | Kind | Guide |
 | ------ | ---- | ----- |
-| [`XdgError`](./docs/09-error-handling.md) | `TaggedError` | Error Handling |
-| [`AppDirsError`](./docs/09-error-handling.md) | `TaggedError` | Error Handling |
-| [`ConfigError`](./docs/09-error-handling.md) | `TaggedError` | Error Handling |
-| [`CodecError`](./docs/09-error-handling.md) | `TaggedError` | Error Handling |
-| [`JsonSchemaError`](./docs/09-error-handling.md) | `TaggedError` | Error Handling |
-| [`CacheError`](./docs/09-error-handling.md) | `TaggedError` | Error Handling |
-| [`StateError`](./docs/09-error-handling.md) | `TaggedError` | Error Handling |
+| [`XdgError`](./docs/10-error-handling.md) | `TaggedError` | Error Handling |
+| [`AppDirsError`](./docs/10-error-handling.md) | `TaggedError` | Error Handling |
+| [`ConfigError`](./docs/10-error-handling.md) | `TaggedError` | Error Handling |
+| [`CodecError`](./docs/10-error-handling.md) | `TaggedError` | Error Handling |
+| [`JsonSchemaError`](./docs/10-error-handling.md) | `TaggedError` | Error Handling |
+| [`JsonSchemaValidationError`](./docs/05-json-schema-advanced.md) | `TaggedError` | JSON Schema Advanced |
+| [`CacheError`](./docs/10-error-handling.md) | `TaggedError` | Error Handling |
+| [`StateError`](./docs/10-error-handling.md) | `TaggedError` | Error Handling |
 
 ### Types
 
 | Export | Kind | Guide |
 | ------ | ---- | ----- |
-| [`XdgEffectError`](./docs/09-error-handling.md) | type | Error Handling |
+| [`XdgEffectError`](./docs/10-error-handling.md) | type | Error Handling |
 | [`ConfigCodec`](./docs/03-config-files.md) | type | Config Files |
 | [`ConfigResolver`](./docs/03-config-files.md) | type | Config Files |
 | [`ConfigWalkStrategy`](./docs/03-config-files.md) | type | Config Files |
 | [`ConfigSource`](./docs/03-config-files.md) | type | Config Files |
 | [`ConfigFileService`](./docs/03-config-files.md) | type | Config Files |
 | [`ConfigFileOptions`](./docs/03-config-files.md) | type | Config Files |
+| [`ConfigFileTestOptions`](./docs/09-testing.md) | type | Testing |
 | [`XdgConfigLiveOptions`](./docs/03-config-files.md) | type | Config Files |
 | [`XdgFullLiveOptions`](./docs/01-getting-started.md) | type | Getting Started |
+| [`XdgResolverTestOptions`](./docs/09-testing.md) | type | Testing |
 | [`AppDirsService`](./docs/02-resolving-xdg-paths.md) | type | Resolving XDG Paths |
 | [`XdgResolverService`](./docs/02-resolving-xdg-paths.md) | type | Resolving XDG Paths |
 | [`JsonSchemaExporterService`](./docs/04-json-schema-generation.md) | type | JSON Schema Generation |
+| [`JsonSchemaValidatorService`](./docs/05-json-schema-advanced.md) | type | JSON Schema Advanced |
+| [`ValidatorOptions`](./docs/05-json-schema-advanced.md) | type | JSON Schema Advanced |
+| [`JsonSchemaClassStatics`](./docs/05-json-schema-advanced.md) | type | JSON Schema Advanced |
 | [`JsonSchemaOutput`](./docs/04-json-schema-generation.md) | type | JSON Schema Generation |
 | [`SchemaEntry`](./docs/04-json-schema-generation.md) | type | JSON Schema Generation |
-| [`SqliteCacheService`](./docs/05-sqlite-cache.md) | type | SQLite Cache |
-| [`CacheEntryMeta`](./docs/05-sqlite-cache.md) | type | SQLite Cache |
-| [`PruneResult`](./docs/05-sqlite-cache.md) | type | SQLite Cache |
-| [`SqliteStateService`](./docs/06-sqlite-state.md) | type | SQLite State |
-| [`StateMigration`](./docs/06-sqlite-state.md) | type | SQLite State |
-| [`MigrationResult`](./docs/06-sqlite-state.md) | type | SQLite State |
+| [`TombiOptions`](./docs/05-json-schema-advanced.md) | type | JSON Schema Advanced |
+| [`TaploOptions`](./docs/05-json-schema-advanced.md) | type | JSON Schema Advanced |
+| [`SqliteCacheService`](./docs/06-sqlite-cache.md) | type | SQLite Cache |
+| [`CacheEntryMeta`](./docs/06-sqlite-cache.md) | type | SQLite Cache |
+| [`PruneResult`](./docs/06-sqlite-cache.md) | type | SQLite Cache |
+| [`SqliteStateService`](./docs/07-sqlite-state.md) | type | SQLite State |
+| [`StateMigration`](./docs/07-sqlite-state.md) | type | SQLite State |
+| [`MigrationResult`](./docs/07-sqlite-state.md) | type | SQLite State |
 | [`WriteResult`](./docs/04-json-schema-generation.md) | type | JSON Schema Generation |
 
 ## License

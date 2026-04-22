@@ -33,6 +33,7 @@ xdg-effect/
 │   ├── index.ts              # Single barrel export
 │   ├── codecs/               # Pluggable config file format parsers
 │   ├── errors/               # Data.TaggedError types
+│   ├── helpers/              # Annotation helpers (tombi, taplo)
 │   ├── layers/               # Layer.Layer implementations
 │   ├── resolvers/            # Config file location strategies
 │   ├── schemas/              # Effect Schema classes
@@ -136,7 +137,7 @@ import type { ConfigCodec } from "./codecs/ConfigCodec.js";
 
 User-facing documentation lives in `docs/`. If your change modifies the public
 API (new exports, changed signatures, new services), update the relevant guide
-and the API reference at `docs/10-api-reference.md`.
+and the API reference at `docs/11-api-reference.md`.
 
 ## License
 

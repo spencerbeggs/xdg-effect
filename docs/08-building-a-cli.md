@@ -366,4 +366,4 @@ This requires importing `Option` from `effect` and `NodeFileSystem` from `@effec
 
 ---
 
-[Previous: SQLite State](./06-sqlite-state.md) | [Next: Testing](./08-testing.md)
+[Previous: SQLite State](./07-sqlite-state.md) | [Next: Testing](./09-testing.md)

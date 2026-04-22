@@ -329,4 +329,4 @@ describe("xdg-effect", () => {
 
 ---
 
-[Previous: Building a CLI](./07-building-a-cli.md) | [Next: Error Handling](./09-error-handling.md)
+[Previous: Building a CLI](./08-building-a-cli.md) | [Next: Error Handling](./10-error-handling.md)
