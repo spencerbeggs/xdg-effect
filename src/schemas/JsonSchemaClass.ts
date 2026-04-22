@@ -22,7 +22,13 @@ export interface JsonSchemaClassStatics<Self> {
  *
  * Static members: `$id`, `schemaEntry` (for the exporter), `toJson` (encodes
  * with `$schema` key), `validate` (Effect Schema decode). Supports `extend()`
- * for composition.
+ * for adding fields to the schema.
+ *
+ * **Note on `extend()`:** Extended classes inherit instance fields and
+ * `schema`/`toJson`/`validate` correctly (they use `this` at access time),
+ * but `schemaEntry.name`, `schemaEntry.$id`, and the static `$id` reflect
+ * the **base class** identity. If you need a distinct `$id` for the extended
+ * class, create a new `JsonSchemaClass` instead of extending.
  *
  * @example
  * ```ts

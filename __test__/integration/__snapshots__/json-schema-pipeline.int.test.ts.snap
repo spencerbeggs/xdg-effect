@@ -1,5 +1,23 @@
 // Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
 
+exports[`E2E pipeline > Jsonifiable field produces clean empty object in written file 1`] = `
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "additionalProperties": false,
+  "properties": {
+    "metadata": {},
+    "name": {
+      "type": "string",
+    },
+  },
+  "required": [
+    "name",
+    "metadata",
+  ],
+  "type": "object",
+}
+`;
+
 exports[`E2E pipeline > full pipeline: generate -> strict validate -> write -> read back 1`] = `
 {
   "$id": "https://json.schemastore.org/app-config.json",
@@ -21,6 +39,67 @@ exports[`E2E pipeline > full pipeline: generate -> strict validate -> write -> r
     "port",
   ],
   "type": "object",
+}
+`;
+
+exports[`JsonSchemaClass integration > extended class schema includes extended fields 1`] = `
+{
+  "$id": "https://json.schemastore.org/test-app-config.json",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "additionalProperties": false,
+  "properties": {
+    "debug": {
+      "type": "boolean",
+    },
+    "extra": {
+      "type": "string",
+    },
+    "name": {
+      "type": "string",
+    },
+    "port": {
+      "type": "number",
+    },
+  },
+  "required": [
+    "name",
+    "port",
+    "extra",
+  ],
+  "type": "object",
+}
+`;
+
+exports[`JsonSchemaClass integration > schemaEntry generates correct schema via exporter 1`] = `
+{
+  "$id": "https://json.schemastore.org/test-app-config.json",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "additionalProperties": false,
+  "properties": {
+    "debug": {
+      "type": "boolean",
+    },
+    "name": {
+      "type": "string",
+    },
+    "port": {
+      "type": "number",
+    },
+  },
+  "required": [
+    "name",
+    "port",
+  ],
+  "type": "object",
+}
+`;
+
+exports[`JsonSchemaClass integration > toJson output matches snapshot 1`] = `
+{
+  "$schema": "https://json.schemastore.org/test-app-config.json",
+  "debug": false,
+  "name": "my-app",
+  "port": 8080,
 }
 `;
 
@@ -86,10 +165,7 @@ exports[`schema generation snapshots > generates a struct with Jsonifiable field
     "name": {
       "type": "string",
     },
-    "options": {
-      "$schema": undefined,
-      "type": undefined,
-    },
+    "options": {},
   },
   "required": [
     "name",

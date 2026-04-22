@@ -33,6 +33,12 @@ const cleanSchema = (node: unknown): unknown => {
 
 	const obj = { ...(node as Record<string, unknown>) };
 
+	// Strip undefined-valued keys (e.g. from Jsonifiable's annotation override)
+	// so the in-memory object matches the JSON-serialized form
+	for (const key of Object.keys(obj)) {
+		if (obj[key] === undefined) delete obj[key];
+	}
+
 	// Rule 1: Strip $id: "/schemas/unknown" artifacts
 	if (obj.$id === "/schemas/unknown") {
 		delete obj.$id;
@@ -69,7 +75,15 @@ const cleanSchema = (node: unknown): unknown => {
 			obj[branch] = (obj[branch] as unknown[]).map(cleanSchema);
 		}
 	}
+	for (const keyword of ["if", "then", "else", "not"] as const) {
+		if (obj[keyword] !== undefined && typeof obj[keyword] === "object") {
+			obj[keyword] = cleanSchema(obj[keyword]);
+		}
+	}
 	if (obj.items !== undefined) obj.items = cleanSchema(obj.items);
+	if (Array.isArray(obj.prefixItems)) {
+		obj.prefixItems = (obj.prefixItems as unknown[]).map(cleanSchema);
+	}
 	if (obj.additionalProperties !== undefined && typeof obj.additionalProperties === "object") {
 		obj.additionalProperties = cleanSchema(obj.additionalProperties);
 	}

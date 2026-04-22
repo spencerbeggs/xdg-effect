@@ -2,12 +2,14 @@ import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { NodeFileSystem } from "@effect/platform-node";
-import { Effect, Layer, Schema } from "effect";
+import { Effect, Layer, ParseResult, Schema } from "effect";
 import { afterEach, describe, expect, it } from "vitest";
 import { JsonSchemaValidationError } from "../../src/errors/JsonSchemaValidationError.js";
 import { taplo } from "../../src/helpers/taplo.js";
 import { tombi } from "../../src/helpers/tombi.js";
 import { Jsonifiable } from "../../src/schemas/Jsonifiable.js";
+import type { JsonSchemaClassStatics } from "../../src/schemas/JsonSchemaClass.js";
+import { JsonSchemaClass } from "../../src/schemas/JsonSchemaClass.js";
 import type { JsonSchemaOutput } from "../../src/services/JsonSchemaExporter.js";
 import { JsonSchemaExporter } from "../../src/services/JsonSchemaExporter.js";
 import { JsonSchemaValidator } from "../../src/services/JsonSchemaValidator.js";
@@ -434,5 +436,126 @@ describe("E2E pipeline", () => {
 		);
 		expect(results).toHaveLength(2);
 		expect(results.every((r) => r._tag === "Written")).toBe(true);
+	});
+
+	it("second write of Jsonifiable-containing schema returns Unchanged", async () => {
+		tmpDir = mkdtempSync(join(tmpdir(), "xdg-int-test-"));
+		const outputPath = join(tmpDir, "with-jsonifiable.schema.json");
+
+		const Config = Schema.Struct({
+			name: Schema.String,
+			options: Jsonifiable,
+		});
+
+		const result = await runExporter(
+			Effect.gen(function* () {
+				const exporter = yield* JsonSchemaExporter;
+				const generated = yield* exporter.generate({
+					name: "Config",
+					schema: Config,
+					rootDefName: "Config",
+				});
+				yield* exporter.write(generated, outputPath);
+				return yield* exporter.write(generated, outputPath);
+			}),
+		);
+		expect(result._tag).toBe("Unchanged");
+	});
+
+	it("Jsonifiable field produces clean empty object in written file", async () => {
+		tmpDir = mkdtempSync(join(tmpdir(), "xdg-int-test-"));
+		const outputPath = join(tmpDir, "jsonifiable.schema.json");
+
+		const Config = Schema.Struct({
+			name: Schema.String,
+			metadata: Jsonifiable,
+		});
+
+		await runExporter(
+			Effect.gen(function* () {
+				const exporter = yield* JsonSchemaExporter;
+				const generated = yield* exporter.generate({
+					name: "JsonifiableConfig",
+					schema: Config,
+					rootDefName: "JsonifiableConfig",
+				});
+				return yield* exporter.write(generated, outputPath);
+			}),
+		);
+
+		const onDisk = JSON.parse(readFileSync(outputPath, "utf-8")) as Record<string, unknown>;
+		expect(onDisk).toMatchSnapshot();
+		const props = onDisk.properties as Record<string, unknown>;
+		expect(props.metadata).toEqual({});
+	});
+});
+
+// ── JsonSchemaClass integration ─────────────────────────────────────────────
+
+class TestAppConfig extends JsonSchemaClass<TestAppConfig>("TestAppConfig", {
+	$id: "https://json.schemastore.org/test-app-config.json",
+})({
+	name: Schema.String,
+	port: Schema.Number,
+	debug: Schema.optionalWith(Schema.Boolean, { default: () => false }),
+}) {}
+
+describe("JsonSchemaClass integration", () => {
+	it("schemaEntry generates correct schema via exporter", async () => {
+		const result = await runExporter(
+			Effect.gen(function* () {
+				const exporter = yield* JsonSchemaExporter;
+				return yield* exporter.generate(TestAppConfig.schemaEntry);
+			}),
+		);
+		expect(result.schema).toMatchSnapshot();
+		expect(result.schema.$id).toBe("https://json.schemastore.org/test-app-config.json");
+	});
+
+	it("toJson output matches snapshot", async () => {
+		const config = TestAppConfig.make({ name: "my-app", port: 8080 });
+		const json = await Effect.runPromise(TestAppConfig.toJson(config));
+		expect(json).toMatchSnapshot();
+		expect(json.$schema).toBe("https://json.schemastore.org/test-app-config.json");
+	});
+
+	it("validate accepts valid input", async () => {
+		const result = await Effect.runPromise(TestAppConfig.validate({ name: "my-app", port: 8080 }));
+		expect(result).toBeInstanceOf(TestAppConfig);
+		expect(result.debug).toBe(false);
+	});
+
+	it("validate rejects invalid input", async () => {
+		const error = await Effect.runPromise(TestAppConfig.validate({ name: 123 }).pipe(Effect.flip));
+		expect(error).toBeInstanceOf(ParseResult.ParseError);
+	});
+
+	it("extended class inherits base $id and name in schemaEntry", () => {
+		class ExtConfig extends TestAppConfig.extend<ExtConfig>("ExtConfig")({
+			extra: Schema.String,
+		}) {}
+		// Extended classes inherit base $id and name — this is documented behavior.
+		// The statics are inherited at runtime via prototype chain but not in the TS type.
+		const ext = ExtConfig as unknown as JsonSchemaClassStatics<ExtConfig> & typeof ExtConfig;
+		expect(ext.$id).toBe("https://json.schemastore.org/test-app-config.json");
+		expect(ext.schemaEntry.name).toBe("TestAppConfig");
+		expect(ext.schemaEntry.$id).toBe("https://json.schemastore.org/test-app-config.json");
+	});
+
+	it("extended class schema includes extended fields", async () => {
+		class ExtConfig extends TestAppConfig.extend<ExtConfig>("ExtConfig")({
+			extra: Schema.String,
+		}) {}
+		const ext = ExtConfig as unknown as JsonSchemaClassStatics<ExtConfig> & typeof ExtConfig;
+		const result = await runExporter(
+			Effect.gen(function* () {
+				const exporter = yield* JsonSchemaExporter;
+				return yield* exporter.generate(ext.schemaEntry);
+			}),
+		);
+		expect(result.schema).toMatchSnapshot();
+		// Extended schema should include the extra field
+		const props = result.schema.properties as Record<string, unknown>;
+		expect(props.extra).toBeDefined();
 	});
 });

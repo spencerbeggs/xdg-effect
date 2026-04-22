@@ -46,7 +46,19 @@ const checkMissingAdditionalProperties = (schema: Record<string, unknown>, path:
 				}
 			}
 		}
+		for (const keyword of ["if", "then", "else", "not"] as const) {
+			if (obj[keyword] !== undefined && typeof obj[keyword] === "object") {
+				walk(obj[keyword] as Record<string, unknown>, `${currentPath}/${keyword}`);
+			}
+		}
 		if (obj.items) walk(obj.items, `${currentPath}/items`);
+		if (Array.isArray(obj.prefixItems)) {
+			let i = 0;
+			for (const item of obj.prefixItems as unknown[]) {
+				walk(item, `${currentPath}/prefixItems/${i}`);
+				i++;
+			}
+		}
 		if (obj.additionalProperties && typeof obj.additionalProperties === "object") {
 			walk(obj.additionalProperties, `${currentPath}/additionalProperties`);
 		}
@@ -114,7 +126,7 @@ export const JsonSchemaValidatorLiveImpl = (): Layer.Layer<JsonSchemaValidator> 
 						});
 					}
 
-					return outputs as unknown as ReadonlyArray<JsonSchemaOutput>;
+					return [...outputs];
 				}),
 		}),
 	);
