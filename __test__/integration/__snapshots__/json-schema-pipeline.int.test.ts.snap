@@ -316,3 +316,25 @@ exports[`schema generation snapshots > generates with tombi annotations 1`] = `
   "x-tombi-toml-version": "v1.0.0",
 }
 `;
+
+exports[`schema generation snapshots > places $id immediately after $schema in serialized output 1`] = `
+"{
+	"$schema": "http://json-schema.org/draft-07/schema#",
+	"$id": "https://json.schemastore.org/id-order.json",
+	"type": "object",
+	"required": [
+		"host",
+		"port"
+	],
+	"properties": {
+		"host": {
+			"type": "string"
+		},
+		"port": {
+			"type": "number"
+		}
+	},
+	"additionalProperties": false,
+	"x-tombi-toml-version": "v1.1.0"
+}"
+`;

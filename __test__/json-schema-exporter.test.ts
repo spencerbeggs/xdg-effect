@@ -157,6 +157,24 @@ describe("JsonSchemaExporter", () => {
 		expect(result.schema.$id).toBe("https://json.schemastore.org/test-config.json");
 	});
 
+	it("places $id right after $schema in key order", async () => {
+		const result = await run(
+			Effect.gen(function* () {
+				const exporter = yield* JsonSchemaExporter;
+				return yield* exporter.generate({
+					name: "TestConfig",
+					schema: TestSchema,
+					rootDefName: "TestConfig",
+					$id: "https://json.schemastore.org/test-config.json",
+					annotations: { "x-tombi-toml-version": "v1.1.0" },
+				});
+			}),
+		);
+		const keys = Object.keys(result.schema);
+		expect(keys[0]).toBe("$schema");
+		expect(keys[1]).toBe("$id");
+	});
+
 	it("does not include $id when not provided", async () => {
 		const result = await run(
 			Effect.gen(function* () {
