@@ -21,9 +21,18 @@ export {
 	JsonSchemaError,
 	JsonSchemaErrorBase,
 } from "./errors/JsonSchemaError.js";
+export {
+	JsonSchemaValidationError,
+	JsonSchemaValidationErrorBase,
+} from "./errors/JsonSchemaValidationError.js";
 export { StateError, StateErrorBase } from "./errors/StateError.js";
 export type { XdgEffectError } from "./errors/types.js";
 export { XdgError, XdgErrorBase } from "./errors/XdgError.js";
+// ── Helpers ────────────────────────────────────────────────────────────────
+export type { TaploOptions } from "./helpers/taplo.js";
+export { taplo } from "./helpers/taplo.js";
+export type { TombiOptions } from "./helpers/tombi.js";
+export { tombi } from "./helpers/tombi.js";
 // ── Layers (composites) ────────────────────────────────────────────────────
 export type { ConfigFileOptions } from "./layers/ConfigFileLive.js";
 export type { ConfigFileTestOptions } from "./layers/ConfigFileTest.js";
@@ -45,6 +54,9 @@ export { XdgSavePath } from "./resolvers/XdgSavePath.js";
 export { AppDirsConfig } from "./schemas/AppDirsConfig.js";
 export { CacheEntry } from "./schemas/CacheEntry.js";
 export { CacheEvent, CacheEventPayload } from "./schemas/CacheEvent.js";
+export { Jsonifiable } from "./schemas/Jsonifiable.js";
+export type { JsonSchemaClassStatics } from "./schemas/JsonSchemaClass.js";
+export { JsonSchemaClass } from "./schemas/JsonSchemaClass.js";
 export { MigrationStatus } from "./schemas/MigrationStatus.js";
 export { ResolvedAppDirs } from "./schemas/ResolvedAppDirs.js";
 export type { WriteResult } from "./schemas/WriteResult.js";
@@ -61,6 +73,11 @@ export type {
 	SchemaEntry,
 } from "./services/JsonSchemaExporter.js";
 export { JsonSchemaExporter } from "./services/JsonSchemaExporter.js";
+export type {
+	JsonSchemaValidatorService,
+	ValidatorOptions,
+} from "./services/JsonSchemaValidator.js";
+export { JsonSchemaValidator } from "./services/JsonSchemaValidator.js";
 export type {
 	CacheEntryMeta,
 	PruneResult,

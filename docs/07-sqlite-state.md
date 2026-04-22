@@ -250,4 +250,4 @@ When using `XdgFullLive`, both `SqliteCache` and `SqliteState` share the same `S
 
 ---
 
-[Previous: SQLite Cache](./05-sqlite-cache.md) | [Next: Building a CLI](./07-building-a-cli.md)
+[Previous: SQLite Cache](./06-sqlite-cache.md) | [Next: Building a CLI](./08-building-a-cli.md)

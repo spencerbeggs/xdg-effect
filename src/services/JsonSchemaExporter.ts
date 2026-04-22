@@ -13,6 +13,8 @@ export interface SchemaEntry {
 	readonly schema: Schema.Schema<any, any, never>;
 	readonly rootDefName: string;
 	readonly annotations?: Record<string, unknown>;
+	/** Top-level $id for the generated schema. Recommend SchemaStore URL convention. */
+	readonly $id?: string;
 }
 
 export interface JsonSchemaOutput {

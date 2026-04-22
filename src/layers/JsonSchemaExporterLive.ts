@@ -27,6 +27,64 @@ const inlineRootRef = (schema: Record<string, unknown>, defName: string): Record
 	return result;
 };
 
+const cleanSchema = (node: unknown): unknown => {
+	if (Array.isArray(node)) return node.map(cleanSchema);
+	if (node === null || typeof node !== "object") return node;
+
+	const obj = { ...(node as Record<string, unknown>) };
+
+	// Rule 1: Strip $id: "/schemas/unknown" artifacts
+	if (obj.$id === "/schemas/unknown") {
+		delete obj.$id;
+		delete obj.title;
+	}
+
+	// Rule 2: Remove empty required arrays
+	if (Array.isArray(obj.required) && obj.required.length === 0) {
+		delete obj.required;
+	}
+
+	// Rule 3: Remove empty properties on Record objects
+	if (
+		obj.additionalProperties !== undefined &&
+		obj.properties !== undefined &&
+		typeof obj.properties === "object" &&
+		obj.properties !== null &&
+		Object.keys(obj.properties as Record<string, unknown>).length === 0
+	) {
+		delete obj.properties;
+	}
+
+	// Recurse into known schema locations
+	if (obj.$defs && typeof obj.$defs === "object") {
+		const defs = obj.$defs as Record<string, unknown>;
+		const cleaned: Record<string, unknown> = {};
+		for (const [key, value] of Object.entries(defs)) {
+			cleaned[key] = cleanSchema(value);
+		}
+		obj.$defs = cleaned;
+	}
+	for (const branch of ["anyOf", "oneOf", "allOf"] as const) {
+		if (Array.isArray(obj[branch])) {
+			obj[branch] = (obj[branch] as unknown[]).map(cleanSchema);
+		}
+	}
+	if (obj.items !== undefined) obj.items = cleanSchema(obj.items);
+	if (obj.additionalProperties !== undefined && typeof obj.additionalProperties === "object") {
+		obj.additionalProperties = cleanSchema(obj.additionalProperties);
+	}
+	if (obj.properties !== undefined && typeof obj.properties === "object" && obj.properties !== null) {
+		const props = obj.properties as Record<string, unknown>;
+		const cleaned: Record<string, unknown> = {};
+		for (const [key, value] of Object.entries(props)) {
+			cleaned[key] = cleanSchema(value);
+		}
+		obj.properties = cleaned;
+	}
+
+	return obj;
+};
+
 const deepEqual = (a: unknown, b: unknown): boolean => {
 	if (a === b) return true;
 	if (typeof a !== typeof b) return false;
@@ -50,12 +108,16 @@ const generateOne = (entry: SchemaEntry): Effect.Effect<JsonSchemaOutput, JsonSc
 		try: () => {
 			const raw = JSONSchema.make(entry.schema) as unknown as Record<string, unknown>;
 			const inlined = inlineRootRef(raw, entry.rootDefName);
+			const cleaned = cleanSchema(inlined) as Record<string, unknown>;
+			if (entry.$id) {
+				cleaned.$id = entry.$id;
+			}
 			if (entry.annotations) {
 				for (const [key, value] of Object.entries(entry.annotations)) {
-					inlined[key] = value;
+					cleaned[key] = value;
 				}
 			}
-			return { name: entry.name, schema: inlined };
+			return { name: entry.name, schema: cleaned };
 		},
 		catch: (error) =>
 			new JsonSchemaError({

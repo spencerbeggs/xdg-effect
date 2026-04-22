@@ -389,4 +389,4 @@ The example uses `:memory:` for simplicity. In production, use `AppDirs.cache` t
 
 ---
 
-[Previous: JSON Schema Generation](./04-json-schema-generation.md) | [Next: SQLite State](./06-sqlite-state.md)
+[Previous: JSON Schema Advanced](./05-json-schema-advanced.md) | [Next: SQLite State](./07-sqlite-state.md)

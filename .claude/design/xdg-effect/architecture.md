@@ -3,9 +3,9 @@ status: current
 module: xdg-effect
 category: architecture
 created: 2026-04-20
-updated: 2026-04-20
-last-synced: 2026-04-20
-completeness: 75
+updated: 2026-04-22
+last-synced: 2026-04-22
+completeness: 80
 related: []
 dependencies: []
 ---
@@ -34,9 +34,10 @@ SQLite-backed caching and persistent state.
 
 xdg-effect solves the problem of portable, testable XDG Base Directory support
 in Effect applications. Rather than scattering `process.env.XDG_CONFIG_HOME`
-reads throughout a codebase, the library provides a progressive stack of six
+reads throughout a codebase, the library provides a progressive stack of seven
 composable Effect layers that build upon each other -- from raw environment
-variable resolution up through config file loading and SQLite-backed storage.
+variable resolution up through config file loading, JSON Schema validation,
+and SQLite-backed storage.
 
 The library is designed for CLI tools, developer tooling, and any Node.js
 application that needs to respect the XDG Base Directory Specification while
@@ -82,6 +83,7 @@ src/
   index.ts              # Single barrel export
   codecs/               # Pluggable config file format parsers
   errors/               # Data.TaggedError types with Base exports
+  helpers/              # Annotation helpers (tombi, taplo)
   layers/               # Layer.Layer implementations (Live variants)
   resolvers/            # Config file location strategies
   schemas/              # Effect Schema classes (data shapes)
@@ -217,7 +219,10 @@ Schema definitions.
 
 - Generate JSON Schema from Effect `Schema` using `JSONSchema.make`
 - Inline `$ref` root definitions for Tombi (TOML tooling) compatibility
-- Apply custom annotations (e.g., `x-tombi` extensions)
+- Run `cleanSchema` pass to strip artifacts (`/schemas/unknown` $id, empty
+  `required` arrays, empty `properties` on Record objects)
+- Inject top-level `$id` from `SchemaEntry.$id` for SchemaStore compatibility
+- Apply custom annotations (e.g., `x-tombi`, `x-taplo` extensions)
 - Diff against existing files using `deepEqual` to skip unchanged writes
 - Create parent directories as needed
 
@@ -244,6 +249,48 @@ interface JsonSchemaExporterService {
 - Used by: Build scripts, CLI tooling
 
 **Layer type:** `Layer.Layer<JsonSchemaExporter, never, FileSystem>`.
+
+#### Component 4b: JsonSchemaValidator
+
+**Location:** `src/services/JsonSchemaValidator.ts`,
+`src/layers/JsonSchemaValidatorLive.ts`
+
+**Purpose:** Validates generated JSON Schema output using Ajv with optional
+strict-mode checks for SchemaStore and Tombi compatibility.
+
+**Responsibilities:**
+
+- Compile generated schemas through Ajv to catch structural errors
+- In strict mode, walk the schema tree to flag objects with `properties` but
+  no `additionalProperties` (Tombi treats these as closed)
+- Validate single or batch outputs, collecting all errors before failing
+
+**Key interfaces/APIs:**
+
+```typescript
+interface JsonSchemaValidatorService {
+  readonly validate: (
+    output: JsonSchemaOutput,
+    options?: ValidatorOptions,
+  ) => Effect.Effect<JsonSchemaOutput, JsonSchemaValidationError>;
+  readonly validateMany: (
+    outputs: ReadonlyArray<JsonSchemaOutput>,
+    options?: ValidatorOptions,
+  ) => Effect.Effect<ReadonlyArray<JsonSchemaOutput>, JsonSchemaValidationError>;
+}
+
+interface ValidatorOptions {
+  readonly strict?: boolean;
+}
+```
+
+**Dependencies:**
+
+- Depends on: `ajv` (optional peer, dynamically imported)
+- Used by: Build scripts, CI validation pipelines
+
+**Layer type:** `Layer.Layer<JsonSchemaValidator>` -- no service requirements
+(Ajv is loaded via dynamic import).
 
 #### Component 5: SqliteCache
 
@@ -367,6 +414,42 @@ with two built-in implementations:
 | `FirstMatch` | `src/strategies/FirstMatch.ts` | Return value from highest-priority source |
 | `LayeredMerge` | `src/strategies/LayeredMerge.ts` | Deep-merge all sources, higher-priority wins on conflicts |
 
+#### Helpers
+
+Pure functions for building TOML tooling annotations. Located in `src/helpers/`.
+
+| Helper | File | Purpose |
+| ------ | ---- | ------- |
+| `tombi(options)` | `src/helpers/tombi.ts` | Builds `x-tombi-*` annotation keys from typed `TombiOptions` |
+| `taplo(options)` | `src/helpers/taplo.ts` | Builds `{ "x-taplo": { ... } }` annotation from typed `TaploOptions` |
+
+These are composable via spread (`{ ...tombi(opts), ...taplo(opts) }`) and
+intended for use in Effect Schema `jsonSchema` annotations or
+`SchemaEntry.annotations`.
+
+#### Schema Utilities
+
+Additional schema helpers beyond the core data shapes:
+
+| Utility | File | Purpose |
+| ------- | ---- | ------- |
+| `Jsonifiable` | `src/schemas/Jsonifiable.ts` | `Schema.Unknown` variant that emits `{}` in JSON Schema instead of `/schemas/unknown`, compatible with Ajv strict mode |
+| `JsonSchemaClass` | `src/schemas/JsonSchemaClass.ts` | `Schema.Class` wrapper that bundles `$id`, `schemaEntry`, `toJson`, and `validate` statics onto the class constructor |
+
+`JsonSchemaClass` usage pattern:
+
+```typescript
+class AppConfig extends JsonSchemaClass<AppConfig>("AppConfig", {
+  $id: "https://json.schemastore.org/app-config.json",
+})({
+  name: Schema.String,
+  port: Schema.Number,
+}) {}
+```
+
+Statics: `AppConfig.$id`, `AppConfig.schemaEntry`, `AppConfig.toJson(inst)`,
+`AppConfig.validate(raw)`.
+
 ### Architecture Diagram
 
 ```text
@@ -412,6 +495,7 @@ api-extractor compatibility:
 | `ConfigError` | `"ConfigError"` | `operation`, `path?`, `reason` |
 | `CodecError` | `"CodecError"` | `codec`, `operation`, `reason` |
 | `JsonSchemaError` | `"JsonSchemaError"` | `operation`, `name?`, `reason` |
+| `JsonSchemaValidationError` | `"JsonSchemaValidationError"` | `name`, `errors` |
 | `CacheError` | `"CacheError"` | `operation`, `key?`, `reason` |
 | `StateError` | `"StateError"` | `operation`, `reason` |
 
@@ -429,6 +513,8 @@ Effect `Schema.Class` definitions for structured data:
 | `ResolvedAppDirs` | `src/schemas/ResolvedAppDirs.ts` | Concrete directory paths after resolution |
 | `CacheEntry` | `src/schemas/CacheEntry.ts` | Single cache entry with key, value (Uint8Array), TTL, tags |
 | `CacheEvent` | `src/schemas/CacheEvent.ts` | Tagged union of cache observability events |
+| `Jsonifiable` | `src/schemas/Jsonifiable.ts` | JSON-safe `Schema.Unknown` variant emitting `{}` in JSON Schema |
+| `JsonSchemaClass` | `src/schemas/JsonSchemaClass.ts` | Schema.Class factory with `$id`, `schemaEntry`, `toJson`, `validate` statics |
 | `MigrationStatus` | `src/schemas/MigrationStatus.ts` | Migration ID + name + optional applied timestamp |
 | `WriteResult` | `src/schemas/WriteResult.ts` | Tagged union: Written or Unchanged (used by JsonSchemaExporter) |
 
@@ -610,15 +696,16 @@ environment variables.
   (used by Cargo, Python pyproject, etc.). smol-toml is small (~15KB) and
   zero-dependency.
 
-#### Trade-off: Optional peer dependencies for SQL layers
+#### Trade-off: Optional peer dependencies for SQL and validation layers
 
 - **What we gained:** Consumers who only need path resolution or config files
-  do not need to install `@effect/sql` or `@effect/sql-sqlite-node`
+  do not need to install `@effect/sql`, `@effect/sql-sqlite-node`, or `ajv`
 - **What we sacrificed:** More complex dependency setup for consumers using the
-  full stack
-- **Why it is worth it:** The library serves two distinct audiences: lightweight
-  XDG path users and full-stack state management users. Forcing SQLite on
-  everyone would be inappropriate.
+  full stack or JSON Schema validation
+- **Why it is worth it:** The library serves multiple audiences: lightweight
+  XDG path users, config file managers, JSON Schema generators, and full-stack
+  state management users. Forcing SQLite or Ajv on everyone would be
+  inappropriate. `ajv` is only needed for `JsonSchemaValidator`.
 
 ---
 
@@ -674,12 +761,27 @@ sequentially; strategy receives all discovered sources for resolution.
 **Responsibilities:**
 
 - Generate JSON Schema from Effect Schema
+- Clean schema artifacts (unknown $id, empty required/properties)
+- Inject `$id` for SchemaStore compatibility
 - Diff and write schema files
 
-**Components:** `JsonSchemaExporter` service, `JsonSchemaExporterLive` layer
+**Components:** `JsonSchemaExporter` service, `JsonSchemaExporterLive` layer,
+`cleanSchema` internal pass
 
 **Communication:** Standalone build-time service. Uses FileSystem for file I/O.
 Not part of the aggregate layer chain (used independently).
+
+#### Layer 4b: JSON Schema Validation (JsonSchemaValidator)
+
+**Responsibilities:**
+
+- Validate generated JSON Schema against Ajv
+- Strict-mode checks for missing `additionalProperties` (Tombi compat)
+
+**Components:** `JsonSchemaValidator` service, `JsonSchemaValidatorLive` layer
+
+**Communication:** Standalone build/CI service. Dynamically imports `ajv` (no
+FileSystem requirement). Typically chained after `JsonSchemaExporter.generate`.
 
 #### Layer 5: Cache (SqliteCache)
 
@@ -790,6 +892,8 @@ All errors are `Data.TaggedError` subclasses, enabling pattern matching via
 - **ConfigError** carries the operation (read/parse/validate/encode/write) and
   file path for precise diagnostics
 - **CodecError** wraps parse/stringify failures from JSON or TOML codecs
+- **JsonSchemaValidationError** carries the schema `name` and an `errors` array
+  of human-readable validation issue descriptions
 - **CacheError** and **StateError** carry operation name and optional key for
   SQL-layer failures
 
@@ -977,11 +1081,31 @@ arrays.
 #### Integration: Tombi (TOML editor tooling)
 
 **Purpose:** JsonSchemaExporter generates schemas compatible with Tombi's
-requirements.
+requirements. The `tombi()` helper builds typed `x-tombi-*` annotations.
 
-**Protocol:** JSON Schema files with `$ref` inlining and `x-tombi` annotations.
+**Protocol:** JSON Schema files with `$ref` inlining, `x-tombi-*` annotations,
+and `cleanSchema` pass for spec compliance.
 
 **Error handling:** N/A -- file format compatibility, not runtime integration.
+
+#### Integration: Taplo (TOML LSP / formatter)
+
+**Purpose:** The `taplo()` helper builds typed `x-taplo` annotations for
+Taplo LSP completions and documentation.
+
+**Protocol:** JSON Schema files with `x-taplo` annotation object.
+
+**Error handling:** N/A -- file format compatibility, not runtime integration.
+
+#### Integration: Ajv (JSON Schema validator)
+
+**Purpose:** `JsonSchemaValidator` uses Ajv in strict mode to validate
+generated schemas before publishing or writing to disk.
+
+**Protocol:** Dynamic `import("ajv")` with CJS/ESM interop unwrap.
+
+**Error handling:** Ajv compilation errors and strict-mode warnings are
+collected into `JsonSchemaValidationError`.
 
 ---
 
@@ -1007,9 +1131,10 @@ requirements.
 
 ### Unit Tests
 
-**Location:** `src/index.test.ts` (single test file)
+**Location:** `src/index.test.ts` (main test file), `__test__/` directory
+(unit and integration tests for JSON Schema features)
 
-**Coverage target:** Not formally specified; 54 tests covering all 6 services.
+**Coverage target:** Not formally specified; tests cover all 7 services.
 
 **What is tested:**
 
@@ -1019,8 +1144,15 @@ requirements.
   formatting
 - ConfigFile: JSON and TOML loading, FirstMatch and LayeredMerge strategies,
   write round-trip, discover across multiple resolvers
-- JsonSchemaExporter: schema generation, $ref inlining, deepEqual skip logic,
-  WriteResult discrimination
+- JsonSchemaExporter: schema generation, $ref inlining, cleanSchema pass, $id
+  injection, deepEqual skip logic, WriteResult discrimination
+- JsonSchemaValidator: Ajv compilation, strict-mode additionalProperties
+  checks, batch validation
+- JsonSchemaClass: $id static, schemaEntry generation, toJson encode,
+  validate decode
+- Jsonifiable: empty schema output, Ajv strict-mode compatibility
+- tombi/taplo: typed annotation helpers, field mapping, custom escape hatch
+- Integration tests: full generate -> validate pipeline with Vitest snapshots
 - SqliteCache: get/set/invalidate/TTL expiry/tag invalidation/prune, PubSub
   event emission
 - SqliteState: migrate/rollback/status, pending migration detection,
@@ -1103,12 +1235,14 @@ to prevent cross-test contamination.
 - `docs/02-resolving-xdg-paths.md` -- XdgResolver + AppDirs usage
 - `docs/03-config-files.md` -- ConfigFile with codecs, resolvers, strategies
 - `docs/04-json-schema-generation.md` -- JsonSchemaExporter usage
-- `docs/05-sqlite-cache.md` -- SqliteCache with TTL, tags, PubSub
-- `docs/06-sqlite-state.md` -- SqliteState with migrations
-- `docs/07-building-a-cli.md` -- @effect/cli integration patterns
-- `docs/08-testing.md` -- Testing patterns with ConfigProvider and temp dirs
-- `docs/09-error-handling.md` -- Tagged error types and recovery strategies
-- `docs/10-api-reference.md` -- Complete API surface reference
+- `docs/05-json-schema-advanced.md` -- SchemaStore compat, helpers, validator,
+  JsonSchemaClass
+- `docs/06-sqlite-cache.md` -- SqliteCache with TTL, tags, PubSub
+- `docs/07-sqlite-state.md` -- SqliteState with migrations
+- `docs/08-building-a-cli.md` -- @effect/cli integration patterns
+- `docs/09-testing.md` -- Testing patterns with ConfigProvider and temp dirs
+- `docs/10-error-handling.md` -- Tagged error types and recovery strategies
+- `docs/11-api-reference.md` -- Complete API surface reference
 
 **Package Documentation:**
 
@@ -1124,8 +1258,10 @@ to prevent cross-test contamination.
 
 ---
 
-**Document Status:** Current at 75% completeness. All major sections are
-populated from the actual implementation. Sections that could benefit from
+**Document Status:** Current at 80% completeness. All major sections are
+populated from the actual implementation. Synced with `feat/schemastore-compat`
+branch additions (JsonSchemaValidator, JsonSchemaClass, Jsonifiable, tombi/taplo
+helpers, cleanSchema pass, $id support). Sections that could benefit from
 additional detail: per-test coverage breakdown, performance characteristics
 of SQLite operations, and cross-references to the user-facing docs for
 usage examples (the guides in `docs/` now cover aggregate layer usage

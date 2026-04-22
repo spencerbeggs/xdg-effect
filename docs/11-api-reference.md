@@ -10,8 +10,9 @@ Complete reference for all xdg-effect exports, organized by category. Each entry
 | `AppDirs` | `"xdg-effect/AppDirs"` | [Resolving XDG Paths](./02-resolving-xdg-paths.md) |
 | `ConfigFileService<A>` | via `ConfigFile.Tag(id)` | [Config Files](./03-config-files.md) |
 | `JsonSchemaExporter` | `"xdg-effect/JsonSchemaExporter"` | [JSON Schema Generation](./04-json-schema-generation.md) |
-| `SqliteCache` | `"xdg-effect/SqliteCache"` | [SQLite Cache](./05-sqlite-cache.md) |
-| `SqliteState` | `"xdg-effect/SqliteState"` | [SQLite State](./06-sqlite-state.md) |
+| `JsonSchemaValidator` | `"xdg-effect/JsonSchemaValidator"` | [JSON Schema Advanced](./05-json-schema-advanced.md) |
+| `SqliteCache` | `"xdg-effect/SqliteCache"` | [SQLite Cache](./06-sqlite-cache.md) |
+| `SqliteState` | `"xdg-effect/SqliteState"` | [SQLite State](./07-sqlite-state.md) |
 
 ```typescript
 // XdgResolverService
@@ -59,6 +60,12 @@ interface JsonSchemaExporterService {
   readonly writeMany: (outputs: ReadonlyArray<{ output: JsonSchemaOutput; path: string }>) => Effect<ReadonlyArray<WriteResult>, JsonSchemaError>;
 }
 
+// JsonSchemaValidatorService
+interface JsonSchemaValidatorService {
+  readonly validate: (output: JsonSchemaOutput, options?: ValidatorOptions) => Effect<JsonSchemaOutput, JsonSchemaValidationError>;
+  readonly validateMany: (outputs: ReadonlyArray<JsonSchemaOutput>, options?: ValidatorOptions) => Effect<ReadonlyArray<JsonSchemaOutput>, JsonSchemaValidationError>;
+}
+
 // SqliteCacheService
 interface SqliteCacheService {
   readonly get: (key: string) => Effect<Option<CacheEntry>, CacheError>;
@@ -97,8 +104,9 @@ interface SqliteStateService {
 | `ConfigFile.Live(options)` | `ConfigFileService<A>` | `FileSystem` | [Config Files](./03-config-files.md) |
 | `XdgConfigLive(options)` | `XdgResolver`, `AppDirs`, `ConfigFileService<A>` | `FileSystem` | [Config Files](./03-config-files.md) |
 | `JsonSchemaExporter.Live` | `JsonSchemaExporter` | `FileSystem` | [JSON Schema Generation](./04-json-schema-generation.md) |
-| `SqliteCache.Live()` | `SqliteCache` | `SqlClient` | [SQLite Cache](./05-sqlite-cache.md) |
-| `SqliteState.Live(options)` | `SqliteState` | `SqlClient` | [SQLite State](./06-sqlite-state.md) |
+| `JsonSchemaValidator.Live` | `JsonSchemaValidator` | (none) | [JSON Schema Advanced](./05-json-schema-advanced.md) |
+| `SqliteCache.Live()` | `SqliteCache` | `SqlClient` | [SQLite Cache](./06-sqlite-cache.md) |
+| `SqliteState.Live(options)` | `SqliteState` | `SqlClient` | [SQLite State](./07-sqlite-state.md) |
 | `XdgFullLive(options)` | `XdgResolver`, `AppDirs`, `ConfigFileService<A>`, `SqliteCache`, `SqliteState` | `FileSystem`, `SqlClient` | [Getting Started](./01-getting-started.md) |
 
 ## Codecs
@@ -161,28 +169,38 @@ interface ConfigWalkStrategy<A> {
 | `XdgPaths` | `home`, `configHome?`, `dataHome?`, `cacheHome?`, `stateHome?`, `runtimeDir?` | [Resolving XDG Paths](./02-resolving-xdg-paths.md) |
 | `AppDirsConfig` | `namespace`, `fallbackDir?`, `dirs?` | [Resolving XDG Paths](./02-resolving-xdg-paths.md) |
 | `ResolvedAppDirs` | `config`, `data`, `cache`, `state`, `runtime?` | [Resolving XDG Paths](./02-resolving-xdg-paths.md) |
-| `CacheEntry` | `key`, `value`, `contentType`, `tags`, `created`, `expiresAt?`, `sizeBytes` | [SQLite Cache](./05-sqlite-cache.md) |
-| `CacheEvent` | `timestamp`, `event` (Hit\|Miss\|Set\|...) | [SQLite Cache](./05-sqlite-cache.md) |
-| `CacheEventPayload` | Hit\|Miss\|Set\|Invalidated\|... (tagged union) | [SQLite Cache](./05-sqlite-cache.md) |
-| `MigrationStatus` | `id`, `name`, `appliedAt?` | [SQLite State](./06-sqlite-state.md) |
+| `Jsonifiable` | (any JSON-serializable value) | [JSON Schema Generation](./04-json-schema-generation.md) |
+| `JsonSchemaClass` | factory for `Schema.Class` with `$id`, `schemaEntry`, `toJson`, `validate` | [JSON Schema Advanced](./05-json-schema-advanced.md) |
+| `CacheEntry` | `key`, `value`, `contentType`, `tags`, `created`, `expiresAt?`, `sizeBytes` | [SQLite Cache](./06-sqlite-cache.md) |
+| `CacheEvent` | `timestamp`, `event` (Hit\|Miss\|Set\|...) | [SQLite Cache](./06-sqlite-cache.md) |
+| `CacheEventPayload` | Hit\|Miss\|Set\|Invalidated\|... (tagged union) | [SQLite Cache](./06-sqlite-cache.md) |
+| `MigrationStatus` | `id`, `name`, `appliedAt?` | [SQLite State](./07-sqlite-state.md) |
 | `WriteResult` | `Written`\|`Unchanged` with `path` | [JSON Schema Generation](./04-json-schema-generation.md) |
+
+## Helpers
+
+| Helper | Parameters | Guide |
+| ------ | ---------- | ----- |
+| `tombi(options)` | `TombiOptions` | [JSON Schema Advanced](./05-json-schema-advanced.md) |
+| `taplo(options)` | `TaploOptions` | [JSON Schema Advanced](./05-json-schema-advanced.md) |
 
 ## Errors
 
 | Error | Tag | Fields | Guide |
 | ----- | --- | ------ | ----- |
-| `XdgError` | `"XdgError"` | `message` | [Error Handling](./09-error-handling.md) |
-| `AppDirsError` | `"AppDirsError"` | `directory`, `reason` | [Error Handling](./09-error-handling.md) |
-| `ConfigError` | `"ConfigError"` | `operation`, `path?`, `reason` | [Error Handling](./09-error-handling.md) |
-| `CodecError` | `"CodecError"` | `codec`, `operation` (`"parse"` \| `"stringify"`), `reason` | [Error Handling](./09-error-handling.md) |
-| `JsonSchemaError` | `"JsonSchemaError"` | `operation`, `name`, `reason` | [Error Handling](./09-error-handling.md) |
-| `CacheError` | `"CacheError"` | `operation`, `key?`, `reason` | [Error Handling](./09-error-handling.md) |
-| `StateError` | `"StateError"` | `operation`, `reason` | [Error Handling](./09-error-handling.md) |
+| `XdgError` | `"XdgError"` | `message` | [Error Handling](./10-error-handling.md) |
+| `AppDirsError` | `"AppDirsError"` | `directory`, `reason` | [Error Handling](./10-error-handling.md) |
+| `ConfigError` | `"ConfigError"` | `operation`, `path?`, `reason` | [Error Handling](./10-error-handling.md) |
+| `CodecError` | `"CodecError"` | `codec`, `operation` (`"parse"` \| `"stringify"`), `reason` | [Error Handling](./10-error-handling.md) |
+| `JsonSchemaError` | `"JsonSchemaError"` | `operation`, `name`, `reason` | [Error Handling](./10-error-handling.md) |
+| `JsonSchemaValidationError` | `"JsonSchemaValidationError"` | `name`, `errors` | [JSON Schema Advanced](./05-json-schema-advanced.md) |
+| `CacheError` | `"CacheError"` | `operation`, `key?`, `reason` | [Error Handling](./10-error-handling.md) |
+| `StateError` | `"StateError"` | `operation`, `reason` | [Error Handling](./10-error-handling.md) |
 
 ```typescript
-type XdgEffectError = XdgError | AppDirsError | ConfigError | CodecError | JsonSchemaError | CacheError | StateError;
+type XdgEffectError = XdgError | AppDirsError | ConfigError | CodecError | JsonSchemaError | JsonSchemaValidationError | CacheError | StateError;
 ```
 
 ---
 
-[Previous: Error Handling](./09-error-handling.md)
+[Previous: Error Handling](./10-error-handling.md)

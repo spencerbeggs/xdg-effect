@@ -88,6 +88,88 @@ describe("JsonSchemaExporter", () => {
 		);
 		expect(result._tag).toBe("Unchanged");
 	});
+
+	it("strips $id: /schemas/unknown artifacts from generated schema", async () => {
+		const SchemaWithUnknown = Schema.Struct({
+			name: Schema.String,
+			metadata: Schema.Unknown,
+		});
+		const result = await run(
+			Effect.gen(function* () {
+				const exporter = yield* JsonSchemaExporter;
+				return yield* exporter.generate({
+					name: "TestWithUnknown",
+					schema: SchemaWithUnknown,
+					rootDefName: "TestWithUnknown",
+				});
+			}),
+		);
+		const props = result.schema.properties as Record<string, Record<string, unknown>>;
+		expect(props.metadata).not.toHaveProperty("$id");
+		expect(props.metadata).not.toHaveProperty("title");
+	});
+
+	it("removes empty required arrays", async () => {
+		const SchemaAllOptional = Schema.Struct({
+			name: Schema.optional(Schema.String),
+		});
+		const result = await run(
+			Effect.gen(function* () {
+				const exporter = yield* JsonSchemaExporter;
+				return yield* exporter.generate({
+					name: "TestAllOptional",
+					schema: SchemaAllOptional,
+					rootDefName: "TestAllOptional",
+				});
+			}),
+		);
+		expect(result.schema).not.toHaveProperty("required");
+	});
+
+	it("removes empty properties on Record schemas", async () => {
+		const RecordSchema = Schema.Record({ key: Schema.String, value: Schema.Number });
+		const result = await run(
+			Effect.gen(function* () {
+				const exporter = yield* JsonSchemaExporter;
+				return yield* exporter.generate({
+					name: "TestRecord",
+					schema: RecordSchema,
+					rootDefName: "TestRecord",
+				});
+			}),
+		);
+		expect(result.schema).not.toHaveProperty("properties");
+		expect(result.schema).toHaveProperty("additionalProperties");
+	});
+
+	it("injects $id when provided in SchemaEntry", async () => {
+		const result = await run(
+			Effect.gen(function* () {
+				const exporter = yield* JsonSchemaExporter;
+				return yield* exporter.generate({
+					name: "TestConfig",
+					schema: TestSchema,
+					rootDefName: "TestConfig",
+					$id: "https://json.schemastore.org/test-config.json",
+				});
+			}),
+		);
+		expect(result.schema.$id).toBe("https://json.schemastore.org/test-config.json");
+	});
+
+	it("does not include $id when not provided", async () => {
+		const result = await run(
+			Effect.gen(function* () {
+				const exporter = yield* JsonSchemaExporter;
+				return yield* exporter.generate({
+					name: "TestConfig",
+					schema: TestSchema,
+					rootDefName: "TestConfig",
+				});
+			}),
+		);
+		expect(result.schema).not.toHaveProperty("$id");
+	});
 });
 
 describe("JsonSchemaExporter.Test", () => {

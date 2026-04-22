@@ -24,6 +24,24 @@ interface JsonSchemaExporterService {
 
 `generate` and `generateMany` convert Effect Schema definitions into JSON Schema objects in memory. `write` and `writeMany` persist those objects to disk.
 
+## Jsonifiable
+
+`Jsonifiable` is a drop-in replacement for `Schema.Unknown` in definitions that will be serialized to JSON Schema.
+
+```typescript
+import { Jsonifiable } from "xdg-effect";
+import { Schema } from "effect";
+
+const MyConfig = Schema.Struct({
+  name: Schema.String,
+  metadata: Jsonifiable, // accepts any JSON-serializable value
+});
+```
+
+`Schema.Unknown` produces a `$id: "/schemas/unknown"` artifact in the generated JSON Schema. This artifact causes Ajv strict-mode validation failures. `Jsonifiable` emits an empty schema object (`{}`) instead, which JSON Schema interprets as "accepts any valid instance" — the correct semantics for an arbitrary JSON value.
+
+Use `Jsonifiable` anywhere your schema accepts a value that will be serialized to JSON: catch-all metadata fields, plugin options, extra properties, and similar open-ended fields.
+
 ### SchemaEntry
 
 Pass a `SchemaEntry` to `generate` to describe what to export:
@@ -33,6 +51,7 @@ interface SchemaEntry {
   readonly name: string;
   readonly schema: Schema.Schema<any, any, never>;
   readonly rootDefName: string;
+  readonly $id?: string;           // top-level $id for the generated schema
   readonly annotations?: Record<string, unknown>;
 }
 ```
@@ -40,7 +59,18 @@ interface SchemaEntry {
 - `name` — identifier used in error messages and as the output name
 - `schema` — any Effect Schema with no context requirements (`R = never`)
 - `rootDefName` — the definition name Effect Schema uses for the root type in `$defs`; used for `$ref` inlining (see [Tombi Integration](#tombi-integration)). The `rootDefName` should match the name that Effect's JSON Schema generator assigns to the root type in its `$defs` section. For a `Schema.Struct` assigned to a variable like `MyToolConfig`, use `"MyToolConfig"`. For `Schema.Class` types, use the class name. The exporter uses this to inline the root definition for compatibility with tools that don't support `$ref`.
+- `$id` — top-level `$id` URL for the generated schema. Recommended for SchemaStore-compatible schemas; use `https://json.schemastore.org/your-schema.json` as the convention.
 - `annotations` — extra top-level properties to merge into the generated schema object (for example, Tombi `x-tombi-*` extensions)
+
+### Cleanup Behavior
+
+`generate` automatically runs a cleanup pass on the raw output from Effect's JSON Schema generator before returning. The cleanup strips three categories of artifacts:
+
+- **`$id: "/schemas/unknown"` artifacts** — produced when `Schema.Unknown` appears in a definition; use `Jsonifiable` to avoid these in the first place, or rely on the cleanup pass to remove them
+- **Empty `required: []` arrays** — Effect emits an empty `required` array for structs with no required fields; the cleanup removes it to avoid noisy diffs
+- **Empty `properties: {}` on Record objects** — structs using `additionalProperties` with no fixed keys produce an empty `properties` object; the cleanup removes it
+
+This happens automatically. Consumers do not need to post-process the output.
 
 ### JsonSchemaOutput
 
@@ -93,6 +123,7 @@ const program = Effect.gen(function* () {
     name: "my-tool-config",
     schema: MyToolConfig,
     rootDefName: "MyToolConfig",
+    $id: "https://json.schemastore.org/my-tool-config.json",
   });
 
   console.log(JSON.stringify(output.schema, null, 2));
@@ -222,4 +253,4 @@ The diff-based skip behavior of `write` (returning `Unchanged` when content is i
 
 ---
 
-[Previous: Config Files](./03-config-files.md) | [Next: SQLite Cache](./05-sqlite-cache.md)
+[Previous: Config Files](./03-config-files.md) | [Next: JSON Schema Advanced](./05-json-schema-advanced.md)

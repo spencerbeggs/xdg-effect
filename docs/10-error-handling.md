@@ -4,7 +4,7 @@ xdg-effect uses Effect's typed error channel with `Data.TaggedError` for every f
 
 ## Error Types
 
-All seven error types are exported from `xdg-effect`. Each extends `Data.TaggedError`, which attaches a `_tag` discriminant used for pattern matching. Most errors expose a computed `message` getter that formats the fields into a human-readable string.
+All eight error types are exported from `xdg-effect`. Each extends `Data.TaggedError`, which attaches a `_tag` discriminant used for pattern matching. Most errors expose a computed `message` getter that formats the fields into a human-readable string.
 
 | Error | Tag | Fields | Raised When |
 | ----- | --- | ------ | ----------- |
@@ -13,15 +13,16 @@ All seven error types are exported from `xdg-effect`. Each extends `Data.TaggedE
 | `ConfigError` | `"ConfigError"` | `operation`, `path?`, `reason` | Config read/parse/validate/write fails |
 | `CodecError` | `"CodecError"` | `codec`, `operation` (`"parse"` \| `"stringify"`), `reason` | JSON/TOML parse or stringify fails |
 | `JsonSchemaError` | `"JsonSchemaError"` | `operation`, `name`, `reason` | Schema generation or write fails |
+| `JsonSchemaValidationError` | `"JsonSchemaValidationError"` | `name`, `errors` | Ajv validation fails (see [JSON Schema Advanced](./05-json-schema-advanced.md)) |
 | `CacheError` | `"CacheError"` | `operation`, `key?`, `reason` | Cache operation fails |
 | `StateError` | `"StateError"` | `operation`, `reason` | Migration or state operation fails |
 
 `XdgError` is the only error that takes `message` directly in its constructor. Every other error derives its `message` from the structured fields — for example, `ConfigError` produces `Config <operation> failed at "<path>": <reason>`.
 
-The `XdgEffectError` union covers all seven types and is useful when you want to handle any xdg-effect error in one place:
+The `XdgEffectError` union covers all eight types and is useful when you want to handle any xdg-effect error in one place:
 
 ```typescript
-type XdgEffectError = XdgError | AppDirsError | ConfigError | CodecError | JsonSchemaError | CacheError | StateError;
+type XdgEffectError = XdgError | AppDirsError | ConfigError | CodecError | JsonSchemaError | JsonSchemaValidationError | CacheError | StateError;
 ```
 
 ## catchTag Patterns
@@ -100,7 +101,7 @@ const program = Effect.gen(function* () {
 );
 ```
 
-The `default` branch is a safety net for error types not explicitly handled. TypeScript's exhaustiveness checking can narrow the `default` branch to `never` if you cover all seven tags.
+The `default` branch is a safety net for error types not explicitly handled. TypeScript's exhaustiveness checking can narrow the `default` branch to `never` if you cover all eight tags.
 
 > **Note:** The `default` branch reaches `never` only if the error channel contains exclusively `XdgEffectError` types. If your program also uses services with other error types (e.g., `SqlError` from `@effect/sql`), those will also appear in the error union and the `default` case will be reachable.
 
@@ -170,4 +171,4 @@ Effect.runPromise(
 
 ---
 
-[Previous: Testing](./08-testing.md) | [Next: API Reference](./10-api-reference.md)
+[Previous: Testing](./09-testing.md) | [Next: API Reference](./11-api-reference.md)
