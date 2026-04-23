@@ -20,6 +20,14 @@ const program = Effect.gen(function* () {
 });
 ```
 
+> **Requires ajv:** The `ajv` package is an optional peer dependency. Install it before using the validator:
+>
+> ```bash
+> pnpm add ajv
+> ```
+>
+> If `ajv` is not installed, calling `validate` or `validateMany` will fail with a `JsonSchemaValidationError` explaining how to install it.
+
 `validate` returns the same `JsonSchemaOutput` on success, so it slots into the generate/write pipeline without unwrapping.
 
 ### Validation Modes
@@ -43,6 +51,37 @@ Strict mode catches:
 - Objects with `properties` but no explicit `additionalProperties` declaration (Tombi compatibility)
 
 The Tombi check matters because Tombi treats objects without `additionalProperties` as closed by default. If your schema has a struct with optional fields but no `additionalProperties` declaration, Tombi will reject any keys not listed in `properties`. Strict validation flags this so you can decide whether to add `additionalProperties: true` or `additionalProperties: false` explicitly.
+
+Note: Annotation placement checks (see below) run in both strict and non-strict modes. The strict flag only controls Ajv strict mode and the `additionalProperties` check.
+
+### Annotation Placement Rules
+
+The validator checks that `x-tombi-*` and `x-taplo` annotations appear at valid positions in the schema tree. These checks run regardless of strict mode — misplaced annotations are always an error.
+
+| Keyword | Valid positions | Constraint |
+| ------- | --------------- | ---------- |
+| `x-tombi-toml-version` | Root only | Schema-level TOML version declaration |
+| `x-tombi-string-formats` | Root only | Schema-level format validators |
+| `x-tombi-table-keys-order` | Any object node | Requires `type: "object"` |
+| `x-tombi-additional-key-label` | Object with `additionalProperties` | Requires both `type: "object"` and `additionalProperties` |
+| `x-tombi-array-values-order` | Array nodes | Requires `type: "array"` or `items` |
+| `x-tombi-array-values-order-by` | Object inside array items | Requires `type: "object"` and parent is `items`/`prefixItems` |
+| `x-taplo` | Any schema node | Warns if `$ref` is present (Taplo ignores it) |
+
+Example: placing `x-tombi-toml-version` inside a property definition will fail validation even in non-strict mode:
+
+```typescript
+// This will fail — x-tombi-toml-version belongs at the root
+const badSchema = {
+  type: "object",
+  properties: {
+    name: { type: "string", "x-tombi-toml-version": "v1.0.0" },
+  },
+};
+
+yield* validator.validate({ name: "bad", schema: badSchema });
+// => JsonSchemaValidationError: "x-tombi-toml-version" must appear at schema root only
+```
 
 ### Layer Setup
 

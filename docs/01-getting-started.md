@@ -4,7 +4,7 @@ xdg-effect gives your Effect application XDG Base Directory support through comp
 
 ## Prerequisites
 
-- Node.js 20+ (22+ recommended)
+- Node.js 24+
 - A package manager (pnpm, npm, or yarn)
 - Basic TypeScript familiarity (generics, async/await)
 - Effect experience is helpful but not required; this guide introduces the concepts you need

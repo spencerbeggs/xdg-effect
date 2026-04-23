@@ -5,7 +5,7 @@ provides guidelines and instructions for development.
 
 ## Prerequisites
 
-- Node.js 22+ (24 recommended)
+- Node.js 24+
 - pnpm 10+
 
 ## Development Setup

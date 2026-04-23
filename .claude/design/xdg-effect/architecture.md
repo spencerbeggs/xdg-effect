@@ -261,8 +261,15 @@ strict-mode checks for SchemaStore and Tombi compatibility.
 **Responsibilities:**
 
 - Compile generated schemas through Ajv to catch structural errors
-- In strict mode, walk the schema tree to flag objects with `properties` but
-  no `additionalProperties` (Tombi treats these as closed)
+- Walk the schema tree to validate annotation placement (always, regardless
+  of strict mode) using a table-driven `PLACEMENT_RULES` map that checks
+  `x-tombi-*` and `x-taplo` keywords appear at valid schema positions
+- In strict mode, additionally flag objects with `properties` but no
+  `additionalProperties` (Tombi treats these as closed)
+- Wrap `ajv` dynamic import with `Effect.tryPromise` for a clear error when
+  the optional peer is not installed
+- Register all extension keywords (including `x-taplo`) with Ajv before
+  compilation so strict mode does not reject them
 - Validate single or batch outputs, collecting all errors before failing
 
 **Key interfaces/APIs:**
@@ -776,12 +783,16 @@ Not part of the aggregate layer chain (used independently).
 **Responsibilities:**
 
 - Validate generated JSON Schema against Ajv
+- Annotation placement validation via table-driven `PLACEMENT_RULES` (runs
+  in all modes -- not gated by strict flag)
 - Strict-mode checks for missing `additionalProperties` (Tombi compat)
 
-**Components:** `JsonSchemaValidator` service, `JsonSchemaValidatorLive` layer
+**Components:** `JsonSchemaValidator` service, `JsonSchemaValidatorLive` layer,
+`PLACEMENT_RULES` table, `checkSchemaConventions` walker, `WalkContext`
 
-**Communication:** Standalone build/CI service. Dynamically imports `ajv` (no
-FileSystem requirement). Typically chained after `JsonSchemaExporter.generate`.
+**Communication:** Standalone build/CI service. Dynamically imports `ajv` via
+`Effect.tryPromise` with a clear missing-peer error (no FileSystem requirement).
+Typically chained after `JsonSchemaExporter.generate`.
 
 #### Layer 5: Cache (SqliteCache)
 
@@ -1146,8 +1157,9 @@ collected into `JsonSchemaValidationError`.
   write round-trip, discover across multiple resolvers
 - JsonSchemaExporter: schema generation, $ref inlining, cleanSchema pass, $id
   injection, deepEqual skip logic, WriteResult discrimination
-- JsonSchemaValidator: Ajv compilation, strict-mode additionalProperties
-  checks, batch validation
+- JsonSchemaValidator: Ajv compilation, PLACEMENT_RULES-driven annotation
+  placement checks (x-tombi-* and x-taplo), strict-mode additionalProperties
+  checks, batch validation, missing-ajv error path
 - JsonSchemaClass: $id static, schemaEntry generation, toJson encode,
   validate decode
 - Jsonifiable: empty schema output, Ajv strict-mode compatibility
@@ -1259,13 +1271,18 @@ to prevent cross-test contamination.
 ---
 
 **Document Status:** Current at 80% completeness. All major sections are
-populated from the actual implementation. Synced with `feat/schemastore-compat`
-branch additions (JsonSchemaValidator, JsonSchemaClass, Jsonifiable, tombi/taplo
-helpers, cleanSchema pass, $id support). Sections that could benefit from
-additional detail: per-test coverage breakdown, performance characteristics
-of SQLite operations, and cross-references to the user-facing docs for
-usage examples (the guides in `docs/` now cover aggregate layer usage
-extensively).
+populated from the actual implementation. Synced with `bug/taplo-validation`
+branch changes (JsonSchemaValidatorLive refactored to table-driven
+`PLACEMENT_RULES` with `checkSchemaConventions` walker replacing
+`checkMissingAdditionalProperties`; `x-taplo` keyword added to extension
+keywords; `loadAjv` wrapped with `Effect.tryPromise` for clear missing-peer
+error; annotation placement validation tests added). Prior sync covered
+`feat/schemastore-compat` additions (JsonSchemaValidator, JsonSchemaClass,
+Jsonifiable, tombi/taplo helpers, cleanSchema pass, $id support). Sections
+that could benefit from additional detail: per-test coverage breakdown,
+performance characteristics of SQLite operations, and cross-references to
+the user-facing docs for usage examples (the guides in `docs/` now cover
+aggregate layer usage extensively).
 
 **Next Steps:**
 
