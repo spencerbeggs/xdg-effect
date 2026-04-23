@@ -18,6 +18,93 @@ exports[`E2E pipeline > Jsonifiable field produces clean empty object in written
 }
 `;
 
+exports[`E2E pipeline > full pipeline with annotations at multiple schema levels 1`] = `
+{
+  "$id": "https://json.schemastore.org/multi-level.json",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "additionalProperties": false,
+  "properties": {
+    "name": {
+      "type": "string",
+    },
+    "plugins": {
+      "additionalProperties": {
+        "additionalProperties": false,
+        "properties": {
+          "enabled": {
+            "type": "boolean",
+          },
+        },
+        "required": [
+          "enabled",
+        ],
+        "type": "object",
+        "x-taplo": {
+          "docs": {
+            "main": "Plugin configuration",
+          },
+        },
+      },
+      "type": "object",
+    },
+    "tags": {
+      "items": {
+        "type": "string",
+      },
+      "type": "array",
+    },
+  },
+  "required": [
+    "name",
+    "plugins",
+    "tags",
+  ],
+  "type": "object",
+  "x-taplo": {
+    "initKeys": [
+      "name",
+    ],
+  },
+  "x-tombi-table-keys-order": "schema",
+  "x-tombi-toml-version": "v1.0.0",
+}
+`;
+
+exports[`E2E pipeline > full pipeline with combined tombi + taplo annotations in strict mode 1`] = `
+{
+  "$id": "https://json.schemastore.org/annotated-config.json",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "additionalProperties": false,
+  "properties": {
+    "debug": {
+      "type": "boolean",
+    },
+    "name": {
+      "type": "string",
+    },
+    "version": {
+      "type": "string",
+    },
+  },
+  "required": [
+    "name",
+    "version",
+  ],
+  "type": "object",
+  "x-taplo": {
+    "docs": {
+      "main": "Annotated config file",
+    },
+    "initKeys": [
+      "name",
+      "version",
+    ],
+  },
+  "x-tombi-table-keys-order": "schema",
+  "x-tombi-toml-version": "v1.0.0",
+}
+`;
+
 exports[`E2E pipeline > full pipeline: generate -> strict validate -> write -> read back 1`] = `
 {
   "$id": "https://json.schemastore.org/app-config.json",
@@ -245,6 +332,41 @@ exports[`schema generation snapshots > generates multiple schemas with generateM
     "type": "object",
   },
 ]
+`;
+
+exports[`schema generation snapshots > generates with combined tombi + taplo annotations (full snapshot) 1`] = `
+{
+  "$id": "https://json.schemastore.org/tombi-taplo.json",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "additionalProperties": false,
+  "properties": {
+    "debug": {
+      "type": "boolean",
+    },
+    "name": {
+      "type": "string",
+    },
+    "version": {
+      "type": "string",
+    },
+  },
+  "required": [
+    "name",
+    "version",
+  ],
+  "type": "object",
+  "x-taplo": {
+    "docs": {
+      "main": "Combined annotation config",
+    },
+    "initKeys": [
+      "name",
+      "version",
+    ],
+  },
+  "x-tombi-table-keys-order": "schema",
+  "x-tombi-toml-version": "v1.0.0",
+}
 `;
 
 exports[`schema generation snapshots > generates with combined tombi + taplo annotations 1`] = `

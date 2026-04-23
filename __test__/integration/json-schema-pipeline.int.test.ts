@@ -244,6 +244,39 @@ describe("schema generation snapshots", () => {
 		expect(result.schema).toMatchSnapshot();
 	});
 
+	it("generates with combined tombi + taplo annotations (full snapshot)", async () => {
+		const Config = Schema.Struct({
+			name: Schema.String,
+			version: Schema.String,
+			debug: Schema.optional(Schema.Boolean),
+		});
+		const result = await runExporter(
+			Effect.gen(function* () {
+				const exporter = yield* JsonSchemaExporter;
+				return yield* exporter.generate({
+					name: "TombiTaploConfig",
+					schema: Config,
+					rootDefName: "TombiTaploConfig",
+					$id: "https://json.schemastore.org/tombi-taplo.json",
+					annotations: {
+						...tombi({ tomlVersion: "v1.0.0", tableKeysOrder: "schema" }),
+						...taplo({
+							initKeys: ["name", "version"],
+							docs: { main: "Combined annotation config" },
+						}),
+					},
+				});
+			}),
+		);
+		expect(result.schema).toMatchSnapshot();
+		expect(result.schema["x-tombi-toml-version"]).toBe("v1.0.0");
+		expect(result.schema["x-tombi-table-keys-order"]).toBe("schema");
+		expect(result.schema["x-taplo"]).toEqual({
+			initKeys: ["name", "version"],
+			docs: { main: "Combined annotation config" },
+		});
+	});
+
 	it("generates multiple schemas with generateMany", async () => {
 		const SchemaA = Schema.Struct({ id: Schema.Number });
 		const SchemaB = Schema.Struct({ name: Schema.String, tags: Schema.Array(Schema.String) });
@@ -483,6 +516,98 @@ describe("E2E pipeline", () => {
 		expect(result._tag).toBe("Unchanged");
 	});
 
+	it("full pipeline with combined tombi + taplo annotations in strict mode", async () => {
+		tmpDir = mkdtempSync(join(tmpdir(), "xdg-int-test-"));
+		const outputPath = join(tmpDir, "annotated-config.schema.json");
+
+		const AnnotatedConfig = Schema.Struct({
+			name: Schema.String,
+			version: Schema.String,
+			debug: Schema.optional(Schema.Boolean),
+		});
+
+		const writeResult = await runFull(
+			Effect.gen(function* () {
+				const exporter = yield* JsonSchemaExporter;
+				const validator = yield* JsonSchemaValidator;
+
+				const generated = yield* exporter.generate({
+					name: "AnnotatedConfig",
+					schema: AnnotatedConfig,
+					rootDefName: "AnnotatedConfig",
+					$id: "https://json.schemastore.org/annotated-config.json",
+					annotations: {
+						...tombi({ tomlVersion: "v1.0.0", tableKeysOrder: "schema" }),
+						...taplo({ initKeys: ["name", "version"], docs: { main: "Annotated config file" } }),
+					},
+				});
+				const validated = yield* validator.validate(generated, { strict: true });
+				return yield* exporter.write(validated, outputPath);
+			}),
+		);
+
+		expect(writeResult._tag).toBe("Written");
+
+		const onDisk = JSON.parse(readFileSync(outputPath, "utf-8")) as Record<string, unknown>;
+		expect(onDisk["x-tombi-toml-version"]).toBe("v1.0.0");
+		expect(onDisk["x-tombi-table-keys-order"]).toBe("schema");
+		expect(onDisk["x-taplo"]).toEqual({
+			initKeys: ["name", "version"],
+			docs: { main: "Annotated config file" },
+		});
+		expect(onDisk).toMatchSnapshot();
+	});
+
+	it("full pipeline with annotations at multiple schema levels", async () => {
+		tmpDir = mkdtempSync(join(tmpdir(), "xdg-int-test-"));
+		const outputPath = join(tmpDir, "multi-level-annotations.schema.json");
+
+		const MultiLevelConfig = Schema.Struct({
+			name: Schema.String,
+			plugins: Schema.Record({
+				key: Schema.String.annotations({
+					jsonSchema: tombi({ additionalKeyLabel: "plugin_name" }),
+				}),
+				value: Schema.Struct({
+					enabled: Schema.Boolean,
+				}).annotations({
+					jsonSchema: {
+						...taplo({ docs: { main: "Plugin configuration" } }),
+					},
+				}),
+			}),
+			tags: Schema.Array(Schema.String),
+		});
+
+		const writeResult = await runFull(
+			Effect.gen(function* () {
+				const exporter = yield* JsonSchemaExporter;
+				const validator = yield* JsonSchemaValidator;
+
+				const generated = yield* exporter.generate({
+					name: "MultiLevelConfig",
+					schema: MultiLevelConfig,
+					rootDefName: "MultiLevelConfig",
+					$id: "https://json.schemastore.org/multi-level.json",
+					annotations: {
+						...tombi({ tomlVersion: "v1.0.0", tableKeysOrder: "schema" }),
+						...taplo({ initKeys: ["name"] }),
+					},
+				});
+				const validated = yield* validator.validate(generated, { strict: true });
+				return yield* exporter.write(validated, outputPath);
+			}),
+		);
+
+		expect(writeResult._tag).toBe("Written");
+
+		const onDisk = JSON.parse(readFileSync(outputPath, "utf-8")) as Record<string, unknown>;
+		expect(onDisk["x-tombi-toml-version"]).toBe("v1.0.0");
+		expect(onDisk["x-tombi-table-keys-order"]).toBe("schema");
+		expect(onDisk["x-taplo"]).toEqual({ initKeys: ["name"] });
+		expect(onDisk).toMatchSnapshot();
+	});
+
 	it("Jsonifiable field produces clean empty object in written file", async () => {
 		tmpDir = mkdtempSync(join(tmpdir(), "xdg-int-test-"));
 		const outputPath = join(tmpDir, "jsonifiable.schema.json");
@@ -508,6 +633,338 @@ describe("E2E pipeline", () => {
 		expect(onDisk).toMatchSnapshot();
 		const props = onDisk.properties as Record<string, unknown>;
 		expect(props.metadata).toEqual({});
+	});
+});
+
+// ── Validation: annotation placement ──────────────────────────────────────────
+
+describe("validation: annotation placement", () => {
+	it("rejects x-tombi-toml-version inside properties", async () => {
+		const schema = toOutput("nested-toml-version", {
+			$schema: "http://json-schema.org/draft-07/schema#",
+			type: "object",
+			properties: {
+				name: { type: "string", "x-tombi-toml-version": "v1.0.0" },
+			},
+			additionalProperties: false,
+		});
+		const result = await Effect.runPromise(
+			Effect.provide(
+				Effect.gen(function* () {
+					const validator = yield* JsonSchemaValidator;
+					return yield* validator.validate(schema).pipe(Effect.flip);
+				}),
+				ValidatorLayer,
+			),
+		);
+		expect(result).toBeInstanceOf(JsonSchemaValidationError);
+		expect(result.errors.some((e) => e.includes("x-tombi-toml-version") && e.includes("root"))).toBe(true);
+	});
+
+	it("rejects x-tombi-string-formats inside properties", async () => {
+		const schema = toOutput("nested-string-formats", {
+			$schema: "http://json-schema.org/draft-07/schema#",
+			type: "object",
+			properties: {
+				email: { type: "string", "x-tombi-string-formats": ["email"] },
+			},
+			additionalProperties: false,
+		});
+		const result = await Effect.runPromise(
+			Effect.provide(
+				Effect.gen(function* () {
+					const validator = yield* JsonSchemaValidator;
+					return yield* validator.validate(schema).pipe(Effect.flip);
+				}),
+				ValidatorLayer,
+			),
+		);
+		expect(result).toBeInstanceOf(JsonSchemaValidationError);
+		expect(result.errors.some((e) => e.includes("x-tombi-string-formats") && e.includes("root"))).toBe(true);
+	});
+
+	it("rejects x-tombi-table-keys-order on array node", async () => {
+		const schema = toOutput("array-table-keys-order", {
+			$schema: "http://json-schema.org/draft-07/schema#",
+			type: "object",
+			properties: {
+				tags: {
+					type: "array",
+					items: { type: "string" },
+					"x-tombi-table-keys-order": "ascending",
+				},
+			},
+			additionalProperties: false,
+		});
+		const result = await Effect.runPromise(
+			Effect.provide(
+				Effect.gen(function* () {
+					const validator = yield* JsonSchemaValidator;
+					return yield* validator.validate(schema).pipe(Effect.flip);
+				}),
+				ValidatorLayer,
+			),
+		);
+		expect(result).toBeInstanceOf(JsonSchemaValidationError);
+		expect(result.errors.some((e) => e.includes("x-tombi-table-keys-order") && e.includes("object"))).toBe(true);
+	});
+
+	it("rejects x-tombi-additional-key-label on object without additionalProperties", async () => {
+		const schema = toOutput("missing-ap-key-label", {
+			$schema: "http://json-schema.org/draft-07/schema#",
+			type: "object",
+			properties: {
+				plugins: {
+					type: "object",
+					properties: { name: { type: "string" } },
+					"x-tombi-additional-key-label": "plugin_name",
+				},
+			},
+			additionalProperties: false,
+		});
+		const result = await Effect.runPromise(
+			Effect.provide(
+				Effect.gen(function* () {
+					const validator = yield* JsonSchemaValidator;
+					return yield* validator.validate(schema).pipe(Effect.flip);
+				}),
+				ValidatorLayer,
+			),
+		);
+		expect(result).toBeInstanceOf(JsonSchemaValidationError);
+		expect(
+			result.errors.some((e) => e.includes("x-tombi-additional-key-label") && e.includes("additionalProperties")),
+		).toBe(true);
+	});
+
+	it("rejects x-tombi-array-values-order on object node", async () => {
+		const schema = toOutput("object-array-order", {
+			$schema: "http://json-schema.org/draft-07/schema#",
+			type: "object",
+			properties: {
+				server: {
+					type: "object",
+					properties: { host: { type: "string" } },
+					additionalProperties: false,
+					"x-tombi-array-values-order": "ascending",
+				},
+			},
+			additionalProperties: false,
+		});
+		const result = await Effect.runPromise(
+			Effect.provide(
+				Effect.gen(function* () {
+					const validator = yield* JsonSchemaValidator;
+					return yield* validator.validate(schema).pipe(Effect.flip);
+				}),
+				ValidatorLayer,
+			),
+		);
+		expect(result).toBeInstanceOf(JsonSchemaValidationError);
+		expect(result.errors.some((e) => e.includes("x-tombi-array-values-order") && e.includes("array"))).toBe(true);
+	});
+
+	it("rejects x-tombi-array-values-order-by on object not inside array items", async () => {
+		const schema = toOutput("non-array-order-by", {
+			$schema: "http://json-schema.org/draft-07/schema#",
+			type: "object",
+			properties: {
+				server: {
+					type: "object",
+					properties: { name: { type: "string" } },
+					additionalProperties: false,
+					"x-tombi-array-values-order-by": "name",
+				},
+			},
+			additionalProperties: false,
+		});
+		const result = await Effect.runPromise(
+			Effect.provide(
+				Effect.gen(function* () {
+					const validator = yield* JsonSchemaValidator;
+					return yield* validator.validate(schema).pipe(Effect.flip);
+				}),
+				ValidatorLayer,
+			),
+		);
+		expect(result).toBeInstanceOf(JsonSchemaValidationError);
+		expect(result.errors.some((e) => e.includes("x-tombi-array-values-order-by") && e.includes("array items"))).toBe(
+			true,
+		);
+	});
+
+	it("rejects x-taplo when present alongside $ref", async () => {
+		const schema = toOutput("taplo-with-ref", {
+			$schema: "http://json-schema.org/draft-07/schema#",
+			type: "object",
+			properties: {
+				server: {
+					$ref: "#/$defs/Server",
+					"x-taplo": { docs: { main: "Server config" } },
+				},
+			},
+			$defs: {
+				Server: {
+					type: "object",
+					properties: { host: { type: "string" } },
+					additionalProperties: false,
+				},
+			},
+			additionalProperties: false,
+		});
+		const result = await Effect.runPromise(
+			Effect.provide(
+				Effect.gen(function* () {
+					const validator = yield* JsonSchemaValidator;
+					return yield* validator.validate(schema).pipe(Effect.flip);
+				}),
+				ValidatorLayer,
+			),
+		);
+		expect(result).toBeInstanceOf(JsonSchemaValidationError);
+		expect(result.errors.some((e) => e.includes("x-taplo") && e.includes("$ref"))).toBe(true);
+	});
+
+	it("accepts x-tombi-table-keys-order on nested object", async () => {
+		const schema = toOutput("nested-table-keys", {
+			$schema: "http://json-schema.org/draft-07/schema#",
+			type: "object",
+			properties: {
+				server: {
+					type: "object",
+					properties: { host: { type: "string" } },
+					additionalProperties: false,
+					"x-tombi-table-keys-order": "ascending",
+				},
+			},
+			additionalProperties: false,
+		});
+		const result = await runValidator(
+			Effect.gen(function* () {
+				const validator = yield* JsonSchemaValidator;
+				return yield* validator.validate(schema);
+			}),
+		);
+		expect(result.name).toBe("nested-table-keys");
+	});
+
+	it("accepts x-taplo on property-level schema", async () => {
+		const schema = toOutput("property-taplo", {
+			$schema: "http://json-schema.org/draft-07/schema#",
+			type: "object",
+			properties: {
+				server: {
+					type: "object",
+					properties: { host: { type: "string" } },
+					additionalProperties: false,
+					"x-taplo": { docs: { main: "Server settings" } },
+				},
+			},
+			additionalProperties: false,
+		});
+		const result = await runValidator(
+			Effect.gen(function* () {
+				const validator = yield* JsonSchemaValidator;
+				return yield* validator.validate(schema);
+			}),
+		);
+		expect(result.name).toBe("property-taplo");
+	});
+
+	it("accepts x-tombi-additional-key-label on object with additionalProperties", async () => {
+		const schema = toOutput("valid-key-label", {
+			$schema: "http://json-schema.org/draft-07/schema#",
+			type: "object",
+			properties: {
+				plugins: {
+					type: "object",
+					additionalProperties: { type: "string" },
+					"x-tombi-additional-key-label": "plugin_name",
+				},
+			},
+			additionalProperties: false,
+		});
+		const result = await runValidator(
+			Effect.gen(function* () {
+				const validator = yield* JsonSchemaValidator;
+				return yield* validator.validate(schema);
+			}),
+		);
+		expect(result.name).toBe("valid-key-label");
+	});
+
+	it("accepts x-tombi-array-values-order on array items", async () => {
+		const schema = toOutput("valid-array-order", {
+			$schema: "http://json-schema.org/draft-07/schema#",
+			type: "object",
+			properties: {
+				tags: {
+					type: "array",
+					items: { type: "string" },
+					"x-tombi-array-values-order": "ascending",
+				},
+			},
+			additionalProperties: false,
+		});
+		const result = await runValidator(
+			Effect.gen(function* () {
+				const validator = yield* JsonSchemaValidator;
+				return yield* validator.validate(schema);
+			}),
+		);
+		expect(result.name).toBe("valid-array-order");
+	});
+
+	it("accepts x-tombi-array-values-order-by on object inside array items", async () => {
+		const schema = toOutput("valid-array-order-by", {
+			$schema: "http://json-schema.org/draft-07/schema#",
+			type: "object",
+			properties: {
+				plugins: {
+					type: "array",
+					items: {
+						type: "object",
+						properties: {
+							name: { type: "string" },
+							version: { type: "string" },
+						},
+						required: ["name"],
+						additionalProperties: false,
+						"x-tombi-array-values-order-by": "name",
+					},
+				},
+			},
+			additionalProperties: false,
+		});
+		const result = await runValidator(
+			Effect.gen(function* () {
+				const validator = yield* JsonSchemaValidator;
+				return yield* validator.validate(schema);
+			}),
+		);
+		expect(result.name).toBe("valid-array-order-by");
+	});
+
+	it("catches misplaced annotations in non-strict mode", async () => {
+		const schema = toOutput("non-strict-misplaced", {
+			$schema: "http://json-schema.org/draft-07/schema#",
+			type: "object",
+			properties: {
+				name: { type: "string", "x-tombi-toml-version": "v1.0.0" },
+			},
+			additionalProperties: false,
+		});
+		const result = await Effect.runPromise(
+			Effect.provide(
+				Effect.gen(function* () {
+					const validator = yield* JsonSchemaValidator;
+					return yield* validator.validate(schema).pipe(Effect.flip);
+				}),
+				ValidatorLayer,
+			),
+		);
+		expect(result).toBeInstanceOf(JsonSchemaValidationError);
+		expect(result.errors.some((e) => e.includes("x-tombi-toml-version"))).toBe(true);
 	});
 });
 

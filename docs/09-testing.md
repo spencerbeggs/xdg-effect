@@ -12,6 +12,7 @@ Every service provides a `.Test` static that creates a pre-configured test layer
 | `AppDirs.Test({ namespace })` | Provides `XdgResolver` + `AppDirs` | Composes a test XdgResolver with a real AppDirs backed by NodeFileSystem |
 | `ConfigFile.Test(options)` | Provides `ConfigFileService<A>` | Accepts all `ConfigFileOptions` fields plus an optional `files: Record<string, string>` for pre-populating test files in temp directories |
 | `JsonSchemaExporter.Test` | Provides `JsonSchemaExporter` | Test layer for JSON Schema generation |
+| `JsonSchemaValidator.Test` | Provides `JsonSchemaValidator` | In-memory Ajv instance for validation tests |
 | `SqliteCache.Test` | Provides `SqliteCache` | Uses an in-memory SQLite database |
 | `SqliteState.Test(options)` | Provides `SqliteState` | Uses an in-memory SQLite database with migrations |
 
