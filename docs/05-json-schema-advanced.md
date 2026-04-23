@@ -66,7 +66,7 @@ The validator checks that `x-tombi-*` and `x-taplo` annotations appear at valid 
 | `x-tombi-additional-key-label` | Object with `additionalProperties` | Requires both `type: "object"` and `additionalProperties` |
 | `x-tombi-array-values-order` | Array nodes | Requires `type: "array"` or `items` |
 | `x-tombi-array-values-order-by` | Object inside array items | Requires `type: "object"` and parent is `items`/`prefixItems` |
-| `x-taplo` | Any schema node | Warns if `$ref` is present (Taplo ignores it) |
+| `x-taplo` | Any schema node | Fails if `$ref` is present (Taplo ignores it) |
 
 Example: placing `x-tombi-toml-version` inside a property definition will fail validation even in non-strict mode:
 

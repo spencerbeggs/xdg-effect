@@ -793,7 +793,7 @@ describe("validation: annotation placement", () => {
 		);
 	});
 
-	it("warns when x-taplo is alongside $ref", async () => {
+	it("rejects x-taplo when present alongside $ref", async () => {
 		const schema = toOutput("taplo-with-ref", {
 			$schema: "http://json-schema.org/draft-07/schema#",
 			type: "object",

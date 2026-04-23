@@ -572,7 +572,7 @@ describe("annotation placement", () => {
 		expect(result.name).toBe("PropertyTaplo");
 	});
 
-	it("warns when x-taplo is present alongside $ref", async () => {
+	it("rejects x-taplo when present alongside $ref", async () => {
 		const schema: JsonSchemaOutput = {
 			name: "TaploWithRef",
 			schema: {
