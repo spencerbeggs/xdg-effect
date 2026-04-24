@@ -31,12 +31,6 @@ export interface XdgFullPresetOptions<A> extends XdgConfigPresetOptions<A> {
 	readonly migrations: ReadonlyArray<StateMigration>;
 }
 
-type FullLayer<A> = Layer.Layer<
-	XdgResolver | AppDirs | ConfigFileService<A> | SqliteCache | SqliteState,
-	never,
-	FileSystem.FileSystem | SqlClient.SqlClient
->;
-
 /**
  * Aggregate layer providing the full xdg-effect stack:
  * {@link XdgResolver}, {@link AppDirs}, {@link ConfigFileService},
@@ -59,7 +53,13 @@ type FullLayer<A> = Layer.Layer<
  *
  * @public
  */
-const _xdgFullLive = <A>(options: XdgFullLiveOptions<A>): FullLayer<A> =>
+const _xdgFullLive = <A>(
+	options: XdgFullLiveOptions<A>,
+): Layer.Layer<
+	XdgResolver | AppDirs | ConfigFileService<A> | SqliteCache | SqliteState,
+	never,
+	FileSystem.FileSystem | SqlClient.SqlClient
+> =>
 	Layer.mergeAll(
 		XdgConfigLive({ app: options.app, config: options.config }),
 		SqliteCache.Live(),
@@ -72,7 +72,13 @@ export const XdgFullLive = Object.assign(_xdgFullLive, {
 	 *
 	 * @public
 	 */
-	toml: <A>(options: XdgFullPresetOptions<A>): FullLayer<A> =>
+	toml: <A>(
+		options: XdgFullPresetOptions<A>,
+	): Layer.Layer<
+		XdgResolver | AppDirs | ConfigFileService<A> | SqliteCache | SqliteState,
+		never,
+		FileSystem.FileSystem | SqlClient.SqlClient
+	> =>
 		Layer.mergeAll(
 			XdgConfigLive.toml(options),
 			SqliteCache.Live(),
@@ -83,7 +89,13 @@ export const XdgFullLive = Object.assign(_xdgFullLive, {
 	 *
 	 * @public
 	 */
-	json: <A>(options: XdgFullPresetOptions<A>): FullLayer<A> =>
+	json: <A>(
+		options: XdgFullPresetOptions<A>,
+	): Layer.Layer<
+		XdgResolver | AppDirs | ConfigFileService<A> | SqliteCache | SqliteState,
+		never,
+		FileSystem.FileSystem | SqlClient.SqlClient
+	> =>
 		Layer.mergeAll(
 			XdgConfigLive.json(options),
 			SqliteCache.Live(),
