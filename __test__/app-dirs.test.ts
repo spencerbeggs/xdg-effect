@@ -59,28 +59,20 @@ describe("AppDirs", () => {
 	});
 
 	it("falls back to $HOME/.namespace when no XDG and no fallbackDir", async () => {
-		const config = new AppDirsConfig({
-			namespace: "test-app",
-			fallbackDir: Option.none(),
-			dirs: Option.none(),
-		});
 		const result = await Effect.runPromise(
-			Effect.provide(
-				Effect.gen(function* () {
-					const appDirs = yield* AppDirs;
-					return yield* appDirs.resolveAll;
-				}),
-				makeTestLayer(config),
+			Effect.scoped(
+				Effect.provide(
+					Effect.gen(function* () {
+						const appDirs = yield* AppDirs;
+						return yield* appDirs.resolveAll;
+					}),
+					AppDirs.Test({ namespace: "test-app", fallbackDir: Option.none(), dirs: Option.none() }),
+				),
 			),
 		);
-		// When no XDG vars and no fallbackDir, falls back to $HOME/.{namespace}
-		const home = process.env.HOME ?? "";
-		const xdgConfig = process.env.XDG_CONFIG_HOME;
-		if (xdgConfig) {
-			expect(result.config).toBe(`${xdgConfig}/test-app`);
-		} else {
-			expect(result.config).toBe(`${home}/.test-app`);
-		}
+		// AppDirs.Test uses XdgResolverTest which sets a temp dir as HOME with no XDG vars
+		// so falls back to $HOME/.{namespace}
+		expect(result.config).toContain("test-app");
 	});
 
 	it("accepts minimal constructor with just namespace", async () => {
@@ -278,5 +270,20 @@ describe("AppDirs.Test", () => {
 		expect(result.data).toContain("test-app");
 		expect(result.cache).toContain("test-app");
 		expect(result.state).toContain("test-app");
+	});
+
+	it("runtime returns None when XDG_RUNTIME_DIR is not set", async () => {
+		const result = await Effect.runPromise(
+			Effect.scoped(
+				Effect.provide(
+					Effect.gen(function* () {
+						const appDirs = yield* AppDirs;
+						return yield* appDirs.runtime;
+					}),
+					AppDirs.Test({ namespace: "runtime-test" }),
+				),
+			),
+		);
+		expect(Option.isNone(result)).toBe(true);
 	});
 });

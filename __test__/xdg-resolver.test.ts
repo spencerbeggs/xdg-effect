@@ -1,5 +1,5 @@
 import { existsSync } from "node:fs";
-import { ConfigProvider, Effect, Option } from "effect";
+import { ConfigProvider, Effect, Exit, Option } from "effect";
 import { describe, expect, it } from "vitest";
 import { XdgResolver } from "../src/services/XdgResolver.js";
 
@@ -85,6 +85,17 @@ describe("XdgResolver", () => {
 			),
 		);
 		expect(Option.isNone(result)).toBe(true);
+	});
+
+	it("fails with XdgError when HOME is not set", async () => {
+		const provider = ConfigProvider.fromMap(new Map()); // no HOME
+		const result = await Effect.runPromiseExit(
+			Effect.gen(function* () {
+				const resolver = yield* XdgResolver;
+				return yield* resolver.home;
+			}).pipe(Effect.withConfigProvider(provider), Effect.provide(XdgResolver.Live)),
+		);
+		expect(Exit.isFailure(result)).toBe(true);
 	});
 });
 

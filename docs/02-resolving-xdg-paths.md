@@ -205,4 +205,4 @@ In this example, `config` and `data` always resolve to the given paths. `cache`,
 
 ---
 
-[Previous: Getting Started](./01-getting-started.md) | [Next: Config Files](./03-config-files.md)
+[Previous: Getting Started](./01-getting-started.md) | [Next: XDG Config Files](./03-xdg-config-files.md)

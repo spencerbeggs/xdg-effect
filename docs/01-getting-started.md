@@ -1,6 +1,14 @@
 # Getting Started
 
-xdg-effect gives your Effect application XDG Base Directory support through composable layers. This guide covers installation, core concepts, and your first program.
+xdg-effect is part of a three-package ecosystem for building XDG-compliant Effect applications:
+
+| Package | Purpose | Install when you need |
+| ------- | ------- | -------------------- |
+| **xdg-effect** | XDG path resolution, app-namespaced directories, SQLite cache and state | XDG Base Directory support, persistent storage |
+| **config-file-effect** | Config file loading with pluggable codecs, resolvers, and strategies | TOML/JSON config files with multi-source resolution |
+| **json-schema-effect** | JSON Schema generation, validation, and TOML tooling annotations | Editor autocompletion for config files, SchemaStore publishing |
+
+Each package is independently useful. xdg-effect depends on config-file-effect and provides XDG-specific bridges into it (`XdgConfigResolver` resolver, `XdgSavePath` helper, `XdgConfigLive` aggregate layer). json-schema-effect is a standalone sibling — install it when you need to generate JSON Schemas from your Effect Schemas.
 
 ## Prerequisites
 
@@ -11,14 +19,49 @@ xdg-effect gives your Effect application XDG Base Directory support through comp
 
 ## Installation
 
+Install the packages your application needs:
+
 ```bash
-pnpm add xdg-effect effect @effect/platform @effect/platform-node
+# XDG path resolution + config file loading
+pnpm add xdg-effect config-file-effect effect @effect/platform @effect/platform-node
 ```
 
-For SqliteCache and SqliteState, add the optional SQLite dependencies:
+For JSON Schema generation (build-time tooling for editor autocompletion):
+
+```bash
+pnpm add json-schema-effect
+```
+
+For SQLite-backed cache and state:
 
 ```bash
 pnpm add @effect/sql @effect/sql-sqlite-node
+```
+
+## Import Pattern
+
+Import from the package that owns each export:
+
+```typescript
+// XDG services — from xdg-effect
+import { AppDirs, AppDirsConfig, XdgConfigResolver, XdgConfigLive, XdgSavePath, XdgResolver } from "xdg-effect";
+
+// Config file machinery — from config-file-effect
+import { ConfigFile, FirstMatch, JsonCodec, TomlCodec, UpwardWalk, ExplicitPath } from "config-file-effect";
+
+// JSON Schema tooling — from json-schema-effect
+import { JsonSchemaExporter, JsonSchemaValidator, tombi, taplo } from "json-schema-effect";
+```
+
+Or import everything from `xdg-effect` as a single entry point:
+
+```typescript
+// All-in-one import — xdg-effect re-exports config-file-effect and json-schema-effect
+import {
+  AppDirs, AppDirsConfig, XdgConfigLive, XdgConfigResolver, XdgSavePath,
+  ConfigFile, TomlCodec, FirstMatch, UpwardWalk,
+  JsonSchemaExporter, tombi, taplo,
+} from "xdg-effect";
 ```
 
 ## Core Concepts
@@ -28,34 +71,31 @@ pnpm add @effect/sql @effect/sql-sqlite-node
 > **Effect concept: Effect** — An `Effect<A, E, R>` is a description of a program that produces a value `A`, can fail with error `E`, and requires services `R` to run. Effects are lazy and do nothing until explicitly executed.
 > See the [Effect docs](https://effect.website/) for more.
 
-[Effect](https://effect.website/) is a TypeScript library for building type-safe, composable programs. Rather than executing side effects directly, you describe what your program should do and let the Effect runtime handle execution, error propagation, and resource management. The three type parameters tell you everything about a program at a glance: what it returns, what can go wrong, and what it needs.
-
-For example, `Effect<string, XdgError, XdgResolver>` is a program that returns a `string`, may fail with `XdgError`, and requires the `XdgResolver` service. xdg-effect uses this type-level precision throughout — every service method carries exact error and dependency information.
+[Effect](https://effect.website/) is a TypeScript library for building type-safe, composable programs. The three type parameters tell you everything about a program at a glance: what it returns, what can go wrong, and what it needs.
 
 ### Services and Context.Tag
 
 > **Effect concept: Service** — A service is a named interface that defines a capability. `Context.Tag` gives each service a unique identity so Effect can look it up in the runtime context.
 > See the [Effect docs on Services](https://effect.website/docs/requirements-management/services) for more.
 
-Services define interfaces. `Context.Tag` gives each service a unique identity that Effect uses to resolve it from the current context. You interact with a service by `yield*`-ing its tag inside `Effect.gen`, which extracts the live implementation at runtime.
+Services define interfaces. You interact with a service by `yield*`-ing its tag inside `Effect.gen`, which extracts the live implementation at runtime.
 
-xdg-effect defines six services: `XdgResolver`, `AppDirs`, `ConfigFile`, `JsonSchemaExporter`, `SqliteCache`, and `SqliteState`. For example, `XdgResolver` is a service with methods like `home` (returns the `HOME` path) and `configHome` (returns the optional `XDG_CONFIG_HOME` path).
+xdg-effect provides four services: `XdgResolver`, `AppDirs`, `SqliteCache`, and `SqliteState`. Config file services come from config-file-effect (`ConfigFile`), and JSON Schema services from json-schema-effect (`JsonSchemaExporter`, `JsonSchemaValidator`).
 
 ### Layers
 
 > **Effect concept: Layer** — A `Layer<A, E, R>` is a recipe for constructing service `A`. It may fail with `E` and may require services `R` as inputs.
 > See the [Effect docs on Layers](https://effect.website/docs/requirements-management/layers) for more.
 
-A `Layer<A, E, R>` is a recipe for building a service. Layers are composable: you wire them together with `Layer.mergeAll` and `Layer.provide` to form the full environment your program needs. Because dependencies are tracked in types, the compiler tells you when something is missing.
+A `Layer<A, E, R>` is a recipe for building a service. Layers are composable: wire them together with `Layer.mergeAll` and `Layer.provide` to form the full environment your program needs. Layer factories are statics on their service tags — for example, `XdgResolver.Live` rather than a standalone export.
 
-xdg-effect provides ready-made layers for each service (`XdgResolver.Live`, `AppDirs.Live(config)`, etc.) and aggregate layers that bundle multiple services (`XdgLive`, `XdgConfigLive`, `XdgFullLive`). Layer factories are statics on their service tags -- for example, `XdgResolver.Live` rather than a standalone `XdgResolverLive` export. You pick the layers your program needs and provide them together.
+xdg-effect provides aggregate layers that bundle multiple services:
 
-### Effect.gen and Effect.provide
-
-> **Effect concept: Effect.gen** — `Effect.gen` lets you write effectful code with generator syntax. `yield*` inside a generator extracts values from effects, pausing execution until each effect resolves.
-> See the [Effect docs on Effect.gen](https://effect.website/docs/getting-started/using-generators) for more.
-
-`Effect.gen` lets you write effectful code with generator syntax. `yield*` inside a generator extracts values from effects, pausing execution until each effect resolves — similar to `await` in async functions. `Effect.provide` wires services into an effect, satisfying its `R` requirement. `Effect.runPromise` executes the final effect and returns a `Promise`.
+| Layer | Provides | Requires |
+| ----- | -------- | -------- |
+| `XdgLive(config)` | `XdgResolver` + `AppDirs` | `FileSystem` |
+| `XdgConfigLive(options)` | `XdgResolver` + `AppDirs` + `ConfigFileService<A>` | `FileSystem` |
+| `XdgFullLive(options)` | All of the above + `SqliteCache` + `SqliteState` | `FileSystem` + `SqlClient` |
 
 ## Your First Program
 
@@ -85,32 +125,16 @@ const program = Effect.gen(function* () {
 Effect.runPromise(program.pipe(Effect.provide(XdgResolver.Live)));
 ```
 
-> **Effect concept: Option** — `Option` is Effect's way of representing a value that might not exist — like `T | null` but type-safe. `Option.isSome(x)` checks if a value is present, and `x.value` extracts it. See the [Effect docs on Option](https://effect.website/docs/data-types/option) for more.
-
-**What to expect:** Running this program on a typical macOS system with `XDG_CONFIG_HOME` set produces output like:
-
-```text
-HOME: /Users/alice
-XDG_CONFIG_HOME: /Users/alice/.config
-All XDG paths: { home: '/Users/alice', configHome: { _tag: 'Some', value: '/Users/alice/.config' }, dataHome: { _tag: 'None' }, cacheHome: { _tag: 'None' }, stateHome: { _tag: 'None' }, runtimeDir: { _tag: 'None' } }
-```
-
-If `XDG_CONFIG_HOME` is not set, the `configHome` branch prints `(not set, will use default)` and `configHome` appears as `{ _tag: 'None' }` in the full paths output.
-
-`XdgResolver.Live` reads XDG environment variables through Effect's `Config` module. `home` is required and fails with `XdgError` if `HOME` is not set -- this is reflected in its type: `Effect<string, XdgError>`. The other paths (`configHome`, `dataHome`, etc.) return `Option<string>` because the XDG environment variables are optional; when unset, the library returns `Option.none()` and your application applies the XDG default path rules itself.
-
 ## What's Next
 
 - [Resolving XDG Paths](./02-resolving-xdg-paths.md) — AppDirs service, 4-level precedence, directory creation
-- [Config Files](./03-config-files.md) — Codecs, resolvers, strategies, config loading
-- [JSON Schema Generation](./04-json-schema-generation.md) — Editor autocompletion for config files
-- [JSON Schema Advanced](./05-json-schema-advanced.md) — Validation, annotation helpers, JsonSchemaClass factory
-- [SQLite Cache](./06-sqlite-cache.md) — TTL cache with tag invalidation
-- [SQLite State](./07-sqlite-state.md) — Managed database with migrations
-- [Building a CLI](./08-building-a-cli.md) — @effect/cli integration
-- [Testing](./09-testing.md) — Testing patterns with ConfigProvider and in-memory FS
-- [Error Handling](./10-error-handling.md) — Typed errors and recovery patterns
-- [API Reference](./11-api-reference.md) — Complete export reference
+- [XDG Config Files](./03-xdg-config-files.md) — XdgConfigResolver resolver, XdgSavePath, XdgConfigLive
+- [SQLite Cache](./04-sqlite-cache.md) — TTL cache with tag invalidation
+- [SQLite State](./05-sqlite-state.md) — Managed database with migrations
+- [Building a CLI](./06-building-a-cli.md) — Three-package integration with @effect/cli
+- [Testing](./07-testing.md) — Test layers and ConfigProvider patterns
+- [Error Handling](./08-error-handling.md) — Typed errors and recovery
+- [API Reference](./09-api-reference.md) — Complete export reference
 
 ---
 

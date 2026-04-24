@@ -167,4 +167,49 @@ describe("SqliteCache.Test", () => {
 		);
 		expect(result).toBe(true);
 	});
+
+	it("returns None for expired entries on get", async () => {
+		const result = await Effect.runPromise(
+			Effect.gen(function* () {
+				const cache = yield* SqliteCache;
+				yield* cache.set({ key: "ephemeral", value: new TextEncoder().encode("temp"), ttl: Duration.millis(1) });
+				yield* Effect.sleep(Duration.millis(50));
+				return yield* cache.get("ephemeral");
+			}).pipe(Effect.scoped, Effect.provide(SqliteCache.Test())),
+		);
+		expect(Option.isNone(result)).toBe(true);
+	});
+
+	it("invalidateAll removes all entries", async () => {
+		const result = await Effect.runPromise(
+			Effect.gen(function* () {
+				const cache = yield* SqliteCache;
+				const encoder = new TextEncoder();
+				yield* cache.set({ key: "a", value: encoder.encode("1") });
+				yield* cache.set({ key: "b", value: encoder.encode("2") });
+				yield* cache.invalidateAll;
+				const a = yield* cache.has("a");
+				const b = yield* cache.has("b");
+				return { a, b };
+			}).pipe(Effect.scoped, Effect.provide(SqliteCache.Test())),
+		);
+		expect(result.a).toBe(false);
+		expect(result.b).toBe(false);
+	});
+
+	it("entries returns metadata for all stored entries", async () => {
+		const result = await Effect.runPromise(
+			Effect.gen(function* () {
+				const cache = yield* SqliteCache;
+				const encoder = new TextEncoder();
+				yield* cache.set({ key: "x", value: encoder.encode("hello"), contentType: "text/plain", tags: ["tag1"] });
+				yield* cache.set({ key: "y", value: encoder.encode("world") });
+				return yield* cache.entries;
+			}).pipe(Effect.scoped, Effect.provide(SqliteCache.Test())),
+		);
+		expect(result.length).toBe(2);
+		const x = result.find((e) => e.key === "x");
+		expect(x?.contentType).toBe("text/plain");
+		expect(x?.sizeBytes).toBe(5);
+	});
 });

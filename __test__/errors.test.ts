@@ -1,13 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
-	AppDirsError,
-	CacheError,
-	CodecError,
-	ConfigError,
-	JsonSchemaError,
-	StateError,
-	XdgError,
-} from "../src/index.js";
+import { AppDirsError, CacheError, StateError, XdgError } from "../src/index.js";
 
 describe("XdgError", () => {
 	it("has correct _tag", () => {
@@ -26,44 +18,6 @@ describe("AppDirsError", () => {
 		expect(error._tag).toBe("AppDirsError");
 		expect(error.message).toContain("config");
 		expect(error.message).toContain("resolution failed");
-	});
-});
-
-describe("ConfigError", () => {
-	it("has correct _tag and message", () => {
-		const error = new ConfigError({
-			operation: "load",
-			path: "/etc/config.json",
-			reason: "not found",
-		});
-		expect(error._tag).toBe("ConfigError");
-		expect(error.message).toContain("load");
-		expect(error.message).toContain("/etc/config.json");
-	});
-});
-
-describe("CodecError", () => {
-	it("has correct _tag and message", () => {
-		const error = new CodecError({
-			codec: "json",
-			operation: "parse",
-			reason: "unexpected token",
-		});
-		expect(error._tag).toBe("CodecError");
-		expect(error.message).toContain("json");
-		expect(error.message).toContain("parse");
-	});
-});
-
-describe("JsonSchemaError", () => {
-	it("has correct _tag and message", () => {
-		const error = new JsonSchemaError({
-			operation: "generate",
-			name: "Config",
-			reason: "invalid schema",
-		});
-		expect(error._tag).toBe("JsonSchemaError");
-		expect(error.message).toContain("Config");
 	});
 });
 
