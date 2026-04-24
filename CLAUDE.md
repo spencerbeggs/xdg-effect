@@ -9,15 +9,28 @@ Opinionated [Effect](https://effect.website/) library providing composable
 layers for XDG Base Directory support, from environment resolution through
 config file management to SQLite-backed caching and persistent state.
 
+### Sibling Packages
+
+xdg-effect extracted its ConfigFile and JSON Schema code into standalone
+packages. xdg-effect re-exports their public API for single-import
+convenience:
+
+- **config-file-effect** (0.2.0) -- ConfigFile, codecs (JSON, TOML,
+  Encrypted), resolvers, strategies, events, migrations, watcher
+- **json-schema-effect** (0.2.0) -- JsonSchemaExporter, JsonSchemaValidator,
+  JsonSchemaScaffolder, taplo/tombi helpers, JsonSchemaClass
+
+Import from `xdg-effect` for convenience or from the sibling packages
+directly. Both work identically at runtime.
+
 ### Services
 
 | Service | Purpose |
 | ------- | ------- |
 | XdgResolver | XDG env var resolution via Effect `Config` |
 | AppDirs | App-namespaced directory resolution with 4-level precedence; `ensure*` methods create directories on demand |
-| ConfigFile | Pluggable config loading with `loadOrDefault`, `save`, `update` convenience methods |
-| JsonSchemaExporter | JSON Schema generation with Tombi annotation support |
-| JsonSchemaValidator | Ajv-based validation with strict-mode SchemaStore/Tombi checks |
+| XdgConfigResolver | ConfigResolver that looks for files in the XDG config directory (requires AppDirs) |
+| XdgSavePath | Default save path resolver for config files in XDG config directory |
 | SqliteCache | KV cache with TTL, tags, PubSub observability |
 | SqliteState | Managed SQLite with user migrations |
 
@@ -28,51 +41,60 @@ standalone exports. Every service also exposes a `.Test` static for
 scoped test layers with temp directories.
 
 ```typescript
-// Live layers
+// Core service layers
 XdgResolver.Live                        // Layer.Layer<XdgResolver>
 AppDirs.Live(config)                    // Layer.Layer<AppDirs, never, XdgResolver | FileSystem>
-ConfigFile.Tag<A>(id)                   // Context.GenericTag for parameterized service
-ConfigFile.Live<A>(options)             // Layer.Layer<ConfigFileService<A>, never, FileSystem>
-JsonSchemaExporter.Live                 // Layer.Layer<JsonSchemaExporter, never, FileSystem>
-JsonSchemaValidator.Live                // Layer.Layer<JsonSchemaValidator> (dynamic import of ajv)
 SqliteCache.Live()                      // Layer.Layer<SqliteCache, never, SqlClient>
 SqliteState.Live({ migrations })        // Layer.Layer<SqliteState, never, SqlClient>
+
+// XDG-integrated factories (auto-resolve paths from AppDirs)
+SqliteCache.XdgLive({ filename? })      // Layer.Layer<SqliteCache, never, AppDirs>
+SqliteState.XdgLive({ migrations, filename? })  // Layer.Layer<SqliteState, never, AppDirs>
+
+// Aggregate layers
+XdgLive(appConfig)                      // XdgResolver | AppDirs
+XdgConfigLive({ app, config })          // XdgResolver | AppDirs | ConfigFileService<A>
+XdgConfigLive.toml({ namespace, filename, tag, schema })  // Preset: TOML codec
+XdgConfigLive.json({ namespace, filename, tag, schema })  // Preset: JSON codec
+XdgConfigLive.multi({ app, configs })   // Multiple config files, shared XdgLive
+XdgFullLive({ app, config, migrations }) // Full stack (XDG + config + SQLite)
+
+// Re-exported from config-file-effect (same static pattern)
+ConfigFile.Live<A>(options)             // Layer.Layer<ConfigFileService<A>, never, FileSystem>
+ConfigFile.Test<A>(options)             // Pre-populated temp directory
+
+// Re-exported from json-schema-effect
+JsonSchemaExporter.Live                 // Layer.Layer<JsonSchemaExporter, never, FileSystem>
+JsonSchemaValidator.Live                // Layer.Layer<JsonSchemaValidator>
+JsonSchemaScaffolder.Live               // Layer.Layer<JsonSchemaScaffolder, never, FileSystem>
 
 // Test layers (all require Scope)
 XdgResolver.Test(options?)              // Scoped temp dirs, no real env vars
 AppDirs.Test({ namespace, ... })        // Includes XdgResolver.Test + NodeFileSystem
-ConfigFile.Test<A>(options)             // Pre-populated temp directory
-JsonSchemaExporter.Test                 // Scoped temp directory
-JsonSchemaValidator.Test                // In-memory Ajv instance
 SqliteCache.Test()                      // In-memory SQLite
 SqliteState.Test({ migrations })        // In-memory SQLite
 ```
 
-**Removed exports (pre-0.2):** `AppDirsLive`, `XdgResolverLive`,
-`JsonSchemaExporterLive`, `makeSqliteCacheLive`, `makeSqliteStateLive`,
-`makeConfigFileTag`, `makeConfigFileLive` -- use the service tag statics
-above instead.
-
 ### Dependencies
 
-- **Runtime:** `effect`, `@effect/platform`, `smol-toml`
+- **Runtime:** `config-file-effect`, `json-schema-effect`
 - **Peer (required):** `@effect/platform`, `@effect/platform-node`, `effect`
 - **Peer (optional):** `@effect/sql`, `@effect/sql-sqlite-node` (only for
-  SqliteCache/SqliteState); `ajv` (only for JsonSchemaValidator)
+  SqliteCache/SqliteState); `ajv` (only for JsonSchemaValidator, transitive
+  via json-schema-effect)
 
 ### Source Layout
 
 ```text
 src/
-  index.ts              # Single barrel export
-  codecs/               # Pluggable config file format parsers (JSON, TOML)
-  errors/               # Data.TaggedError types with Base exports
-  helpers/              # Annotation helpers (tombi, taplo) for TOML tooling
-  layers/               # Layer implementations (*Live.ts and *Test.ts)
-  resolvers/            # Config file location strategies (5 built-in + XdgSavePath)
-  schemas/              # Effect Schema classes (data shapes + Jsonifiable, JsonSchemaClass)
-  services/             # Context.Tag service interfaces (with .Live/.Test statics)
-  strategies/           # Config resolution merge strategies
+  index.ts              # Barrel export (own code + re-exports from sibling packages)
+  errors/               # AppDirsError, CacheError, StateError, XdgError
+  layers/               # XdgLive, XdgConfigLive, XdgFullLive, SqliteCache*Live,
+                        #   SqliteState*Live, *Test layers, XdgResolverLive/Test
+  resolvers/            # XdgConfigResolver, XdgSavePath (bridges to config-file-effect)
+  schemas/              # AppDirsConfig, CacheEntry, CacheEvent, MigrationStatus,
+                        #   ResolvedAppDirs, XdgPaths
+  services/             # XdgResolver, AppDirs, SqliteCache, SqliteState
 ```
 
 ### User Documentation
@@ -87,9 +109,8 @@ public API surface, adding services, or modifying layer composition.
 **For architecture details, layer composition, and design rationale:**
 -> `@./.claude/design/xdg-effect/architecture.md`
 
-Load when working on service interfaces, layer wiring, adding new
-codecs/resolvers/strategies, JSON Schema generation/validation, or
-debugging dependency graph issues.
+Load when working on service interfaces, layer wiring, aggregate layer
+composition, XDG resolvers, or debugging dependency graph issues.
 **Do NOT load unless directly relevant to your task.**
 
 ## Build Pipeline

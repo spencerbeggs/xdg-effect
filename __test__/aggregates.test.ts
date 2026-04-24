@@ -1,16 +1,13 @@
 import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { NodeFileSystem } from "@effect/platform-node";
+import { ConfigFile, FirstMatch, JsonCodec, StaticDir } from "config-file-effect";
 import { Effect, Layer, Option, Schema } from "effect";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { JsonCodec } from "../src/codecs/JsonCodec.js";
 import { XdgConfigLive } from "../src/layers/XdgConfigLive.js";
 import { XdgLive } from "../src/layers/XdgLive.js";
-import { StaticDir } from "../src/resolvers/StaticDir.js";
 import { AppDirs } from "../src/services/AppDirs.js";
-import { ConfigFile } from "../src/services/ConfigFile.js";
 import { XdgResolver } from "../src/services/XdgResolver.js";
-import { FirstMatch } from "../src/strategies/FirstMatch.js";
 
 const TestConfigSchema = Schema.Struct({ name: Schema.String });
 type TestConfig = typeof TestConfigSchema.Type;

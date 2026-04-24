@@ -1,5 +1,5 @@
+import { ConfigError } from "config-file-effect";
 import { Effect } from "effect";
-import { ConfigError } from "../errors/ConfigError.js";
 import { AppDirs } from "../services/AppDirs.js";
 
 /**

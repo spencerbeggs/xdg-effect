@@ -6,6 +6,8 @@ import type { StateError } from "../errors/StateError.js";
 import { makeSqliteStateLiveImpl } from "../layers/SqliteStateLive.js";
 // biome-ignore lint/suspicious/noImportCycles: service class intentionally co-locates its Test layer
 import { SqliteStateTestImpl } from "../layers/SqliteStateTest.js";
+// biome-ignore lint/suspicious/noImportCycles: service class intentionally co-locates its XdgLive layer
+import { SqliteStateXdgLiveImpl } from "../layers/SqliteStateXdgLive.js";
 import type { MigrationStatus } from "../schemas/MigrationStatus.js";
 
 export interface StateMigration {
@@ -35,5 +37,6 @@ export interface SqliteStateService {
 
 export class SqliteState extends Context.Tag("xdg-effect/SqliteState")<SqliteState, SqliteStateService>() {
 	static Live = makeSqliteStateLiveImpl;
+	static XdgLive = SqliteStateXdgLiveImpl;
 	static Test = SqliteStateTestImpl;
 }

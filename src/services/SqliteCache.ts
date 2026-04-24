@@ -5,6 +5,8 @@ import type { CacheError } from "../errors/CacheError.js";
 import { makeSqliteCacheLiveImpl } from "../layers/SqliteCacheLive.js";
 // biome-ignore lint/suspicious/noImportCycles: service class intentionally co-locates its Test layer
 import { SqliteCacheTestImpl } from "../layers/SqliteCacheTest.js";
+// biome-ignore lint/suspicious/noImportCycles: service class intentionally co-locates its XdgLive layer
+import { SqliteCacheXdgLiveImpl } from "../layers/SqliteCacheXdgLive.js";
 import type { CacheEntry } from "../schemas/CacheEntry.js";
 import type { CacheEvent } from "../schemas/CacheEvent.js";
 
@@ -41,5 +43,6 @@ export interface SqliteCacheService {
 
 export class SqliteCache extends Context.Tag("xdg-effect/SqliteCache")<SqliteCache, SqliteCacheService>() {
 	static Live = makeSqliteCacheLiveImpl;
+	static XdgLive = SqliteCacheXdgLiveImpl;
 	static Test = SqliteCacheTestImpl;
 }

@@ -8,7 +8,8 @@ export default NodeLibraryBuilder.create({
 		"@effect/platform-node",
 		"@effect/sql",
 		"@effect/sql-sqlite-node",
-		"smol-toml",
+		"config-file-effect",
+		"json-schema-effect",
 	],
 	apiModel: {
 		suppressWarnings: [{ messageId: "ae-forgotten-export", pattern: "_base" }],

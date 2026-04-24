@@ -134,4 +134,18 @@ describe("SqliteState.Test", () => {
 		expect(result[0]?.name).toBe("create_test_table");
 		expect(Option.isSome(result[0]?.appliedAt ?? Option.none())).toBe(true);
 	});
+
+	it("migrate is idempotent when all migrations already applied", async () => {
+		const result = await Effect.runPromise(
+			Effect.provide(
+				Effect.gen(function* () {
+					const state = yield* SqliteState;
+					return yield* state.migrate;
+				}),
+				SqliteState.Test({ migrations: testMigrations }),
+			),
+		);
+		expect(result.applied.length).toBe(0);
+		expect(result.rolledBack.length).toBe(0);
+	});
 });
