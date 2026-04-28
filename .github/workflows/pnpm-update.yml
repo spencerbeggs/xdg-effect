@@ -55,6 +55,11 @@ jobs:
             @savvy-web/pnpm-plugin-silk
           dependencies: |
             @savvy-web/*
+            config-file-effect
+            json-schema-effect
+            ajv
+          peer-minor: |
+            ajv
           run: |
             pnpm savvy-commit init
             pnpm savvy-lint init
