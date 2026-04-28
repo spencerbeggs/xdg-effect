@@ -1,5 +1,11 @@
 # xdg-effect
 
+## 1.0.1
+
+### Other
+
+* [`2cc67e5`](https://github.com/spencerbeggs/xdg-effect/commit/2cc67e53e7fb01f1010b4d985c16cd586d63e24e) Setup updater action
+
 ## 1.0.0
 
 ### Breaking Changes
