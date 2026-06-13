@@ -66,7 +66,7 @@
 		"@effect/sql": "catalog:silk",
 		"@effect/sql-sqlite-node": "catalog:silk",
 		"@savvy-web/bundler": "^0.4.1",
-		"@savvy-web/silk": "^0.4.2",
+		"@savvy-web/silk": "^0.5.0",
 		"@savvy-web/vitest": "^1.5.0",
 		"ajv": "^8.20.0",
 		"effect": "catalog:silkPeers"
