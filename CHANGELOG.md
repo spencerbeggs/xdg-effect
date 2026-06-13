@@ -1,5 +1,14 @@
 # xdg-effect
 
+## 1.0.2
+
+### Dependencies
+
+* | [`1b2881e`](https://github.com/spencerbeggs/xdg-effect/commit/1b2881e5a3efb8ed83246e17aedb6b1c1918e210) | Dependency | Type    | Action | From   | To |
+  | :------------------------------------------------------------------------------------------------------ | :--------- | :------ | :----- | :----- | -- |
+  | config-file-effect                                                                                      | dependency | updated | ^0.2.0 | ^0.2.1 |    |
+  | json-schema-effect                                                                                      | dependency | updated | ^0.2.1 | ^0.2.2 |    |
+
 ## 1.0.1
 
 ### Other
