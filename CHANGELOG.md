@@ -1,5 +1,20 @@
 # xdg-effect
 
+## 1.0.3
+
+### Dependencies
+
+* | [`41872b3`](https://github.com/spencerbeggs/xdg-effect/commit/41872b39aa95b865615f601201c09203012ac9b4) | Dependency    | Type    | Action | From   | To |
+  | :------------------------------------------------------------------------------------------------------ | :------------ | :------ | :----- | :----- | -- |
+  | config-file-effect                                                                                      | dependency    | updated | ^0.2.1 | ^0.2.2 |    |
+  | @savvy-web/vitest                                                                                       | devDependency | updated | ^1.5.0 | ^1.5.1 |    |
+
+- | [`b6ed192`](https://github.com/spencerbeggs/xdg-effect/commit/b6ed192fd0eacab968226d89772d06787deb8eb6) | Dependency    | Type    | Action | From   | To |
+  | :------------------------------------------------------------------------------------------------------ | :------------ | :------ | :----- | :----- | -- |
+  | json-schema-effect                                                                                      | dependency    | updated | ^0.2.2 | ^0.2.4 |    |
+  | @savvy-web/bundler                                                                                      | devDependency | updated | ^0.4.2 | ^0.5.0 |    |
+  | @savvy-web/silk                                                                                         | devDependency | updated | ^1.0.0 | ^1.1.0 |    |
+
 ## 1.0.2
 
 ### Dependencies
