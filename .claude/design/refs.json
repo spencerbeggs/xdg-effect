@@ -1,0 +1,11 @@
+{
+	"version": 1,
+	"refs": [
+		{
+			"source": "CLAUDE.md",
+			"target": ".claude/design/xdg-effect/architecture.md",
+			"hash": "012e5516f78fcdde471fe7ac6e6ce449cea4e9afd91ae8bd174684a6ae62c1ac",
+			"recordedAt": "2026-06-19"
+		}
+	]
+}

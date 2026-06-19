@@ -112,6 +112,7 @@ export type { AppDirsService } from "./services/AppDirs.js";
 export { AppDirs } from "./services/AppDirs.js";
 export type {
 	CacheEntryMeta,
+	CacheRemovalResult,
 	PruneResult,
 	SqliteCacheService,
 } from "./services/SqliteCache.js";

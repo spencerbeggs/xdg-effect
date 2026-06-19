@@ -1,7 +1,8 @@
 import { mkdirSync, rmSync } from "node:fs";
 import { SqliteClient } from "@effect/sql-sqlite-node";
-import { Duration, Effect, Layer, Option, PubSub, Queue } from "effect";
+import { Duration, Effect, Exit, Layer, Option, PubSub, Queue } from "effect";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { CacheError } from "../src/errors/CacheError.js";
 import type { CacheEvent } from "../src/schemas/CacheEvent.js";
 import { SqliteCache } from "../src/services/SqliteCache.js";
 
@@ -111,13 +112,14 @@ describe("SqliteCache", () => {
 						ttl: Duration.millis(1),
 					});
 					yield* Effect.sleep(Duration.millis(10));
-					const pruneResult = yield* cache.prune;
+					const pruneResult = yield* cache.prune();
 					return pruneResult;
 				}),
 				makeLayers(),
 			),
 		);
 		expect(result.count).toBeGreaterThanOrEqual(1);
+		expect(result.keys).toContain("ephemeral");
 	});
 
 	it("emits events via PubSub", async () => {
@@ -187,7 +189,7 @@ describe("SqliteCache.Test", () => {
 				const encoder = new TextEncoder();
 				yield* cache.set({ key: "a", value: encoder.encode("1") });
 				yield* cache.set({ key: "b", value: encoder.encode("2") });
-				yield* cache.invalidateAll;
+				yield* cache.invalidateAll();
 				const a = yield* cache.has("a");
 				const b = yield* cache.has("b");
 				return { a, b };
@@ -195,6 +197,201 @@ describe("SqliteCache.Test", () => {
 		);
 		expect(result.a).toBe(false);
 		expect(result.b).toBe(false);
+	});
+
+	it("invalidateByTag returns the removed keys", async () => {
+		const result = await Effect.runPromise(
+			Effect.gen(function* () {
+				const cache = yield* SqliteCache;
+				const enc = new TextEncoder();
+				yield* cache.set({ key: "a", value: enc.encode("1"), tags: ["g"] });
+				yield* cache.set({ key: "b", value: enc.encode("2"), tags: ["g"] });
+				yield* cache.set({ key: "c", value: enc.encode("3"), tags: ["other"] });
+				return yield* cache.invalidateByTag("g");
+			}).pipe(Effect.scoped, Effect.provide(SqliteCache.Test())),
+		);
+		expect(result.count).toBe(2);
+		expect([...result.keys].sort()).toEqual(["a", "b"]);
+	});
+
+	it("invalidateAll returns the removed keys", async () => {
+		const result = await Effect.runPromise(
+			Effect.gen(function* () {
+				const cache = yield* SqliteCache;
+				const enc = new TextEncoder();
+				yield* cache.set({ key: "a", value: enc.encode("1") });
+				yield* cache.set({ key: "b", value: enc.encode("2") });
+				return yield* cache.invalidateAll();
+			}).pipe(Effect.scoped, Effect.provide(SqliteCache.Test())),
+		);
+		expect(result.count).toBe(2);
+		expect([...result.keys].sort()).toEqual(["a", "b"]);
+	});
+
+	it("prune runs the onRemoved callback with the removed keys", async () => {
+		const seen: string[] = [];
+		await Effect.runPromise(
+			Effect.gen(function* () {
+				const cache = yield* SqliteCache;
+				yield* cache.set({ key: "ephemeral", value: new TextEncoder().encode("x"), ttl: Duration.millis(1) });
+				yield* Effect.sleep(Duration.millis(20));
+				yield* cache.prune((res) =>
+					Effect.sync(() => {
+						seen.push(...res.keys);
+					}),
+				);
+			}).pipe(Effect.scoped, Effect.provide(SqliteCache.Test())),
+		);
+		expect(seen).toContain("ephemeral");
+	});
+
+	it("prune rolls back the delete when the onRemoved callback fails", async () => {
+		const result = await Effect.runPromise(
+			Effect.gen(function* () {
+				const cache = yield* SqliteCache;
+				yield* cache.set({ key: "ephemeral", value: new TextEncoder().encode("x"), ttl: Duration.millis(1) });
+				yield* Effect.sleep(Duration.millis(20));
+				const exit = yield* cache
+					.prune(() => Effect.fail(new CacheError({ operation: "prune", reason: "cleanup boom" })))
+					.pipe(Effect.exit);
+				// `entries` ignores expiry, so it reflects whether the row physically survived.
+				const remaining = yield* cache.entries;
+				return { failed: Exit.isFailure(exit), keys: remaining.map((e) => e.key) };
+			}).pipe(Effect.scoped, Effect.provide(SqliteCache.Test())),
+		);
+		expect(result.failed).toBe(true);
+		expect(result.keys).toContain("ephemeral");
+	});
+
+	it("invalidate runs the onRemoved callback when the key existed", async () => {
+		const result = await Effect.runPromise(
+			Effect.gen(function* () {
+				const cache = yield* SqliteCache;
+				let called = false;
+				yield* cache.set({ key: "k", value: new TextEncoder().encode("v") });
+				yield* cache.invalidate("k", () =>
+					Effect.sync(() => {
+						called = true;
+					}),
+				);
+				const present = yield* cache.has("k");
+				return { called, present };
+			}).pipe(Effect.scoped, Effect.provide(SqliteCache.Test())),
+		);
+		expect(result.called).toBe(true);
+		expect(result.present).toBe(false);
+	});
+
+	it("invalidate does not run the onRemoved callback when the key is absent", async () => {
+		const called = await Effect.runPromise(
+			Effect.gen(function* () {
+				const cache = yield* SqliteCache;
+				let ran = false;
+				yield* cache.invalidate("missing", () =>
+					Effect.sync(() => {
+						ran = true;
+					}),
+				);
+				return ran;
+			}).pipe(Effect.scoped, Effect.provide(SqliteCache.Test())),
+		);
+		expect(called).toBe(false);
+	});
+
+	it("invalidate rolls back the delete when the onRemoved callback fails", async () => {
+		const result = await Effect.runPromise(
+			Effect.gen(function* () {
+				const cache = yield* SqliteCache;
+				yield* cache.set({ key: "k", value: new TextEncoder().encode("v") });
+				const exit = yield* cache
+					.invalidate("k", () => Effect.fail(new CacheError({ operation: "invalidate", key: "k", reason: "boom" })))
+					.pipe(Effect.exit);
+				const present = yield* cache.has("k");
+				return { failed: Exit.isFailure(exit), present };
+			}).pipe(Effect.scoped, Effect.provide(SqliteCache.Test())),
+		);
+		expect(result.failed).toBe(true);
+		expect(result.present).toBe(true);
+	});
+
+	it("Pruned event carries the removed keys", async () => {
+		const events = await Effect.runPromise(
+			Effect.scoped(
+				Effect.gen(function* () {
+					const cache = yield* SqliteCache;
+					const dequeue = yield* PubSub.subscribe(cache.events);
+					yield* cache.set({ key: "gone", value: new TextEncoder().encode("x"), ttl: Duration.millis(1) });
+					yield* Effect.sleep(Duration.millis(20));
+					yield* cache.prune();
+					const collected: CacheEvent[] = [];
+					let next = yield* Queue.poll(dequeue);
+					while (Option.isSome(next)) {
+						collected.push(next.value);
+						next = yield* Queue.poll(dequeue);
+					}
+					return collected;
+				}),
+			).pipe(Effect.provide(SqliteCache.Test())),
+		);
+		const pruned = events.find((e) => e.event._tag === "Pruned");
+		expect(pruned).toBeDefined();
+		if (pruned && pruned.event._tag === "Pruned") {
+			expect(pruned.event.keys).toContain("gone");
+		}
+	});
+
+	it("InvalidatedAll event carries the removed keys", async () => {
+		const events = await Effect.runPromise(
+			Effect.scoped(
+				Effect.gen(function* () {
+					const cache = yield* SqliteCache;
+					const dequeue = yield* PubSub.subscribe(cache.events);
+					const enc = new TextEncoder();
+					yield* cache.set({ key: "a", value: enc.encode("1") });
+					yield* cache.set({ key: "b", value: enc.encode("2") });
+					yield* cache.invalidateAll();
+					const collected: CacheEvent[] = [];
+					let next = yield* Queue.poll(dequeue);
+					while (Option.isSome(next)) {
+						collected.push(next.value);
+						next = yield* Queue.poll(dequeue);
+					}
+					return collected;
+				}),
+			).pipe(Effect.provide(SqliteCache.Test())),
+		);
+		const all = events.find((e) => e.event._tag === "InvalidatedAll");
+		expect(all).toBeDefined();
+		if (all && all.event._tag === "InvalidatedAll") {
+			expect([...all.event.keys].sort()).toEqual(["a", "b"]);
+		}
+	});
+
+	it("InvalidatedByTag event carries the removed keys", async () => {
+		const events = await Effect.runPromise(
+			Effect.scoped(
+				Effect.gen(function* () {
+					const cache = yield* SqliteCache;
+					const dequeue = yield* PubSub.subscribe(cache.events);
+					const enc = new TextEncoder();
+					yield* cache.set({ key: "a", value: enc.encode("1"), tags: ["g"] });
+					yield* cache.set({ key: "b", value: enc.encode("2"), tags: ["g"] });
+					yield* cache.invalidateByTag("g");
+					const collected: CacheEvent[] = [];
+					let next = yield* Queue.poll(dequeue);
+					while (Option.isSome(next)) {
+						collected.push(next.value);
+						next = yield* Queue.poll(dequeue);
+					}
+					return collected;
+				}),
+			).pipe(Effect.provide(SqliteCache.Test())),
+		);
+		const tagged = events.find((e) => e.event._tag === "InvalidatedByTag");
+		expect(tagged).toBeDefined();
+		if (tagged && tagged.event._tag === "InvalidatedByTag") {
+			expect([...tagged.event.keys].sort()).toEqual(["a", "b"]);
+		}
 	});
 
 	it("entries returns metadata for all stored entries", async () => {
