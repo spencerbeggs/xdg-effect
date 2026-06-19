@@ -1,13 +1,35 @@
-import { SqlClient } from "@effect/sql";
+import { SqlClient, SqlError } from "@effect/sql";
 import type { Duration } from "effect";
 import { DateTime, Effect, Layer, Option, PubSub } from "effect";
 import { CacheError } from "../errors/CacheError.js";
 import { CacheEntry } from "../schemas/CacheEntry.js";
 import { CacheEvent } from "../schemas/CacheEvent.js";
 // biome-ignore lint/suspicious/noImportCycles: layer intentionally co-locates with its service tag
-import type { PruneResult } from "../services/SqliteCache.js";
+import type { CacheRemovalResult, PruneResult } from "../services/SqliteCache.js";
 // biome-ignore lint/suspicious/noImportCycles: layer intentionally co-locates with its service tag
 import { SqliteCache } from "../services/SqliteCache.js";
+
+const isSqlError = (e: unknown): e is SqlError.SqlError =>
+	typeof e === "object" && e !== null && SqlError.SqlErrorTypeId in e;
+
+/**
+ * Map SQL failures (and defects) to {@link CacheError} while leaving any other
+ * error in the channel untouched — used by the callback-bearing mutations so a
+ * consumer's `onRemoved` error type survives instead of being collapsed into
+ * `CacheError`.
+ */
+const mapSqlError =
+	(operation: string, key?: string) =>
+	<A, E, R>(effect: Effect.Effect<A, E, R>): Effect.Effect<A, CacheError | Exclude<E, SqlError.SqlError>, R> => {
+		const base = key !== undefined ? { operation, key } : { operation };
+		// biome-ignore format: keep the SqlError-narrowing branch on one line alongside its explanatory cast
+		return effect.pipe(
+			Effect.catchAllDefect((defect) => Effect.fail(new CacheError({ ...base, reason: String(defect) }))),
+			Effect.catchAll((e) => (isSqlError(e) ? Effect.fail(new CacheError({ ...base, reason: String(e) })) : Effect.fail(e))),
+			// `Exclude` over an unconstrained generic can't be simplified by the
+			// compiler; the runtime above guarantees SqlError is gone.
+		) as Effect.Effect<A, CacheError | Exclude<E, SqlError.SqlError>, R>;
+	};
 
 const emit = (pubsub: PubSub.PubSub<CacheEvent>, event: typeof CacheEvent.Type.event) =>
 	Effect.gen(function* () {
@@ -128,43 +150,87 @@ export const makeSqliteCacheLiveImpl = (): Layer.Layer<SqliteCache, never, SqlCl
 					});
 				}).pipe(wrapCacheError("set", params.key));
 
-			const invalidate = (key: string) =>
-				Effect.gen(function* () {
-					yield* sql`DELETE FROM cache_entries WHERE key = ${key}`;
-					yield* emit(pubsub, { _tag: "Invalidated", key });
-				}).pipe(wrapCacheError("invalidate", key));
+			const invalidate = <E = never, R = never>(key: string, onRemoved?: () => Effect.Effect<void, E, R>) =>
+				sql
+					.withTransaction(
+						Effect.gen(function* () {
+							yield* sql`DELETE FROM cache_entries WHERE key = ${key}`;
+							if (onRemoved) {
+								yield* onRemoved();
+							}
+						}),
+					)
+					.pipe(
+						Effect.tap(() => emit(pubsub, { _tag: "Invalidated", key })),
+						mapSqlError("invalidate", key),
+					);
 
-			const invalidateByTag = (tag: string) =>
-				Effect.gen(function* () {
-					const escaped = tag.replace(/[%_\\]/g, "\\$&");
-					const pattern = `%"${escaped}"%`;
-					const before = yield* sql`SELECT COUNT(*) as count FROM cache_entries WHERE tags LIKE ${pattern} ESCAPE '\\'`;
-					const count = (before[0] as { count: number }).count;
-					yield* sql`DELETE FROM cache_entries WHERE tags LIKE ${pattern} ESCAPE '\\'`;
-					yield* emit(pubsub, {
-						_tag: "InvalidatedByTag",
-						tag,
-						count,
-					});
-				}).pipe(wrapCacheError("invalidateByTag"));
+			const invalidateByTag = <E = never, R = never>(
+				tag: string,
+				onRemoved?: (result: CacheRemovalResult) => Effect.Effect<void, E, R>,
+			) =>
+				sql
+					.withTransaction(
+						Effect.gen(function* () {
+							const escaped = tag.replace(/[%_\\]/g, "\\$&");
+							const pattern = `%"${escaped}"%`;
+							const removed =
+								yield* sql`DELETE FROM cache_entries WHERE tags LIKE ${pattern} ESCAPE '\\' RETURNING key`;
+							const keys = removed.map((row) => (row as { key: string }).key);
+							const result = { count: keys.length, keys } satisfies CacheRemovalResult;
+							if (onRemoved) {
+								yield* onRemoved(result);
+							}
+							return result;
+						}),
+					)
+					.pipe(
+						Effect.tap((result) =>
+							emit(pubsub, { _tag: "InvalidatedByTag", tag, count: result.count, keys: result.keys }),
+						),
+						mapSqlError("invalidateByTag"),
+					);
 
-			const invalidateAll = Effect.gen(function* () {
-				const before = yield* sql`SELECT COUNT(*) as count FROM cache_entries`;
-				const count = (before[0] as { count: number }).count;
-				yield* sql`DELETE FROM cache_entries`;
-				yield* emit(pubsub, { _tag: "InvalidatedAll", count });
-			}).pipe(wrapCacheError("invalidateAll"));
+			const invalidateAll = <E = never, R = never>(
+				onRemoved?: (result: CacheRemovalResult) => Effect.Effect<void, E, R>,
+			) =>
+				sql
+					.withTransaction(
+						Effect.gen(function* () {
+							const removed = yield* sql`DELETE FROM cache_entries RETURNING key`;
+							const keys = removed.map((row) => (row as { key: string }).key);
+							const result = { count: keys.length, keys } satisfies CacheRemovalResult;
+							if (onRemoved) {
+								yield* onRemoved(result);
+							}
+							return result;
+						}),
+					)
+					.pipe(
+						Effect.tap((result) => emit(pubsub, { _tag: "InvalidatedAll", count: result.count, keys: result.keys })),
+						mapSqlError("invalidateAll"),
+					);
 
-			const prune: Effect.Effect<PruneResult, CacheError> = Effect.gen(function* () {
-				const now = yield* DateTime.now;
-				const nowIso = DateTime.formatIso(now);
-				const before =
-					yield* sql`SELECT COUNT(*) as count FROM cache_entries WHERE expires_at IS NOT NULL AND expires_at <= ${nowIso}`;
-				const count = (before[0] as { count: number }).count;
-				yield* sql`DELETE FROM cache_entries WHERE expires_at IS NOT NULL AND expires_at <= ${nowIso}`;
-				yield* emit(pubsub, { _tag: "Pruned", count });
-				return { count } satisfies PruneResult;
-			}).pipe(wrapCacheError("prune"));
+			const prune = <E = never, R = never>(onRemoved?: (result: PruneResult) => Effect.Effect<void, E, R>) =>
+				sql
+					.withTransaction(
+						Effect.gen(function* () {
+							const now = yield* DateTime.now;
+							const nowIso = DateTime.formatIso(now);
+							const removed =
+								yield* sql`DELETE FROM cache_entries WHERE expires_at IS NOT NULL AND expires_at <= ${nowIso} RETURNING key`;
+							const keys = removed.map((row) => (row as { key: string }).key);
+							const result = { count: keys.length, keys } satisfies PruneResult;
+							if (onRemoved) {
+								yield* onRemoved(result);
+							}
+							return result;
+						}),
+					)
+					.pipe(
+						Effect.tap((result) => emit(pubsub, { _tag: "Pruned", count: result.count, keys: result.keys })),
+						mapSqlError("prune"),
+					);
 
 			const has = (key: string) =>
 				Effect.gen(function* () {

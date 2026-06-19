@@ -86,7 +86,7 @@ const program = Effect.gen(function* () {
   yield* cache.invalidate("user:42");
 
   // Remove all entries
-  yield* cache.invalidateAll;
+  yield* cache.invalidateAll();
 });
 ```
 
@@ -127,14 +127,36 @@ const program = Effect.gen(function* () {
 });
 ```
 
-Expiry is checked lazily on `get` and `has`. Expired entries are deleted on access. To bulk-remove all expired entries proactively, call `cache.prune`:
+Expiry is checked lazily on `get` and `has`. Expired entries are deleted on access. To bulk-remove all expired entries proactively, call `cache.prune()`:
 
 ```typescript
-const result = yield* cache.prune;
-console.log(`Pruned ${result.count} expired entries`);
+const result = yield* cache.prune();
+console.log(`Pruned ${result.count} entries:`, result.keys);
+// Pruned <n> entries: [ "rate-limit:user:42", ... ]
 ```
 
-`prune` returns a `PruneResult` with the count of removed entries. Call it on a schedule to keep the database compact.
+`prune` returns a `CacheRemovalResult` with `count` (how many entries were removed) and `keys` (the keys that were removed). Use `keys` to clean up anything those entries were tracking — on-disk artifacts, downstream caches — without enumerating the cache separately. Call `prune` on a schedule to keep the database compact.
+
+To roll back the prune if that cleanup fails, pass an `onRemoved` callback. It runs inside the same transaction as the delete, before commit. If it fails, the delete is undone and no `Pruned` event is emitted:
+
+```typescript
+const result = yield* cache.prune((removed) =>
+  // Runs inside the delete transaction; throwing here rolls the delete back
+  Effect.forEach(removed.keys, (key) => deleteOnDiskArtifact(key), { discard: true }),
+);
+console.log(`Pruned and cleaned up ${result.count} entries`);
+// Pruned and cleaned up <n> entries
+```
+
+If you don't need rollback, run the cleanup after the delete with `Effect.tap` instead. This still fails the operation when cleanup fails, but the delete stays committed:
+
+```typescript
+const result = yield* cache.prune().pipe(
+  Effect.tap((removed) =>
+    Effect.forEach(removed.keys, (key) => deleteOnDiskArtifact(key), { discard: true }),
+  ),
+);
+```
 
 ## Tag-Based Invalidation
 
@@ -164,11 +186,15 @@ const program = Effect.gen(function* () {
   });
 
   // Invalidate all github-api entries when the auth token changes
-  yield* cache.invalidateByTag("github-api");
+  const removed = yield* cache.invalidateByTag("github-api");
+  console.log(`Removed ${removed.count} entries:`, removed.keys);
+  // Removed <n> entries: [ "github:repos:spencerbeggs", "github:user:spencerbeggs" ]
 });
 ```
 
-`invalidateByTag` removes all entries whose `tags` array includes the given tag. This is useful when a shared dependency (an auth token, a database row, a remote resource) changes and all derived cache entries must be flushed together.
+`invalidateByTag` removes all entries whose `tags` array includes the given tag. This is useful when a shared dependency (an auth token, a database row, a remote resource) changes and all derived cache entries must be flushed together. It returns a `CacheRemovalResult` with the `count` and `keys` removed.
+
+Like `prune` and `invalidateAll`, `invalidateByTag` accepts an optional `onRemoved` callback that runs inside the delete transaction before commit. A failing callback rolls back the delete and suppresses the `InvalidatedByTag` event. `invalidate` accepts the same callback, taking no arguments since it removes a single known key.
 
 ## PubSub Events
 
@@ -207,9 +233,9 @@ Each `CacheEvent` has a `timestamp` (`DateTime`) and an `event` payload from the
 | `Miss` | `key` | `get` found no entry |
 | `Set` | `key`, `sizeBytes`, `tags` | `set` wrote an entry |
 | `Invalidated` | `key` | `invalidate` removed an entry |
-| `InvalidatedByTag` | `tag`, `count` | `invalidateByTag` removed entries |
-| `InvalidatedAll` | `count` | `invalidateAll` cleared the cache |
-| `Pruned` | `count` | `prune` removed expired entries |
+| `InvalidatedByTag` | `tag`, `count`, `keys` | `invalidateByTag` removed entries |
+| `InvalidatedAll` | `count`, `keys` | `invalidateAll` cleared the cache |
+| `Pruned` | `count`, `keys` | `prune` removed expired entries |
 | `Expired` | `key` | `get` or `has` found an expired entry |
 
 Pattern-match on `event._tag` to handle specific event types:
@@ -261,10 +287,20 @@ interface SqliteCacheService {
     readonly tags?: ReadonlyArray<string>;
     readonly ttl?: Duration;
   }) => Effect<void, CacheError>;
-  readonly invalidate: (key: string) => Effect<void, CacheError>;
-  readonly invalidateByTag: (tag: string) => Effect<void, CacheError>;
-  readonly invalidateAll: Effect<void, CacheError>;
-  readonly prune: Effect<PruneResult, CacheError>;
+  readonly invalidate: <E = never, R = never>(
+    key: string,
+    onRemoved?: () => Effect<void, E, R>,
+  ) => Effect<void, CacheError | E, R>;
+  readonly invalidateByTag: <E = never, R = never>(
+    tag: string,
+    onRemoved?: (result: CacheRemovalResult) => Effect<void, E, R>,
+  ) => Effect<CacheRemovalResult, CacheError | E, R>;
+  readonly invalidateAll: <E = never, R = never>(
+    onRemoved?: (result: CacheRemovalResult) => Effect<void, E, R>,
+  ) => Effect<CacheRemovalResult, CacheError | E, R>;
+  readonly prune: <E = never, R = never>(
+    onRemoved?: (result: CacheRemovalResult) => Effect<void, E, R>,
+  ) => Effect<CacheRemovalResult, CacheError | E, R>;
   readonly has: (key: string) => Effect<boolean, CacheError>;
   readonly entries: Effect<ReadonlyArray<CacheEntryMeta>, CacheError>;
   readonly events: PubSub.PubSub<CacheEvent>;
@@ -293,9 +329,9 @@ interface CacheEvent {
     | { _tag: "Miss"; key: string }
     | { _tag: "Set"; key: string; sizeBytes: number; tags: Array<string> }
     | { _tag: "Invalidated"; key: string }
-    | { _tag: "InvalidatedByTag"; tag: string; count: number }
-    | { _tag: "InvalidatedAll"; count: number }
-    | { _tag: "Pruned"; count: number }
+    | { _tag: "InvalidatedByTag"; tag: string; count: number; keys: Array<string> }
+    | { _tag: "InvalidatedAll"; count: number; keys: Array<string> }
+    | { _tag: "Pruned"; count: number; keys: Array<string> }
     | { _tag: "Expired"; key: string };
 }
 ```
@@ -313,11 +349,14 @@ interface CacheEvent {
 | `expiresAt` | `string \| undefined` |
 | `sizeBytes` | `number` |
 
-### PruneResult
+### CacheRemovalResult
+
+Returned by `prune`, `invalidateByTag` and `invalidateAll`. `PruneResult` is an alias of `CacheRemovalResult`, retained for backwards compatibility.
 
 ```typescript
-interface PruneResult {
+interface CacheRemovalResult {
   readonly count: number;
+  readonly keys: ReadonlyArray<string>;
 }
 ```
 

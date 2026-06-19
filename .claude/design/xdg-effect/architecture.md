@@ -3,8 +3,8 @@ status: current
 module: xdg-effect
 category: architecture
 created: 2026-04-20
-updated: 2026-04-22
-last-synced: 2026-04-22
+updated: 2026-06-19
+last-synced: 2026-06-19
 completeness: 80
 related: []
 dependencies: []
@@ -311,30 +311,47 @@ tag-based invalidation, and PubSub observability.
 - Store and retrieve binary blobs keyed by string
 - Support TTL-based automatic expiry (checked on read, bulk-pruned on demand)
 - Tag entries for grouped invalidation
+- Report removed keys from bulk ops (`prune`, `invalidateByTag`,
+  `invalidateAll` return `CacheRemovalResult { count, keys }` and carry the
+  keys in their events) via a single `DELETE ... RETURNING key`
+- Run an optional `onRemoved` callback inside the delete transaction so
+  external cleanup stays in lock-step with the cache (see Decision 6)
 - Emit cache events (hit, miss, set, invalidate, prune, expire) via PubSub
 - List all entry metadata for introspection
 
 **Key interfaces/APIs:**
 
 ```typescript
+// Return shape of every bulk-removal op (and carried in their events)
+interface CacheRemovalResult {
+  readonly count: number;
+  readonly keys: ReadonlyArray<string>;
+}
+type PruneResult = CacheRemovalResult; // alias kept for back-compat
+
 interface SqliteCacheService {
   readonly get: (key: string) => Effect.Effect<Option.Option<CacheEntry>, CacheError>;
-  readonly set: (params: {
-    readonly key: string;
-    readonly value: Uint8Array;
-    readonly contentType?: string;
-    readonly tags?: ReadonlyArray<string>;
-    readonly ttl?: Duration.Duration;
-  }) => Effect.Effect<void, CacheError>;
-  readonly invalidate: (key: string) => Effect.Effect<void, CacheError>;
-  readonly invalidateByTag: (tag: string) => Effect.Effect<void, CacheError>;
-  readonly invalidateAll: Effect.Effect<void, CacheError>;
-  readonly prune: Effect.Effect<PruneResult, CacheError>;
+  readonly set: (params: { /* key, value, contentType?, tags?, ttl? */ }) => Effect.Effect<void, CacheError>;
+  // Bulk removals report the removed keys; an optional onRemoved callback runs
+  // inside the DELETE transaction before commit (see Decision 6).
+  readonly invalidate: <E, R>(key: string, onRemoved?: () => Effect.Effect<void, E, R>)
+    => Effect.Effect<void, CacheError | E, R>;
+  readonly invalidateByTag: <E, R>(tag: string, onRemoved?: (r: CacheRemovalResult) => Effect.Effect<void, E, R>)
+    => Effect.Effect<CacheRemovalResult, CacheError | E, R>;
+  readonly invalidateAll: <E, R>(onRemoved?: (r: CacheRemovalResult) => Effect.Effect<void, E, R>)
+    => Effect.Effect<CacheRemovalResult, CacheError | E, R>;
+  readonly prune: <E, R>(onRemoved?: (r: PruneResult) => Effect.Effect<void, E, R>)
+    => Effect.Effect<PruneResult, CacheError | E, R>;
   readonly has: (key: string) => Effect.Effect<boolean, CacheError>;
   readonly entries: Effect.Effect<ReadonlyArray<CacheEntryMeta>, CacheError>;
   readonly events: PubSub.PubSub<CacheEvent>;
 }
 ```
+
+`invalidateAll` and `prune` are functions (call as `invalidateAll()` /
+`prune()`), not bare `Effect` values. `invalidate` returns
+`Effect<void, ...>` -- only the three multi-key ops return a
+`CacheRemovalResult`.
 
 **Dependencies:**
 
@@ -641,6 +658,37 @@ environment variables.
    - Cons: Always-on overhead, less structured
    - Why rejected: Cache events are high-frequency; always-on logging would
      be noisy.
+
+#### Decision 6: Atomic bulk removal with an in-transaction cleanup callback
+
+**Context:** Consumers cache entries that track external artifacts (e.g.
+on-disk blobs). When a bulk removal deletes those entries, the artifacts must
+be cleaned up too -- without orphaning them if anything fails.
+
+**What changed:** The bulk-removal ops (`prune`, `invalidateByTag`,
+`invalidateAll`) switched from a two-statement `SELECT COUNT(*)` then `DELETE`
+to a single `DELETE ... RETURNING key`. This both surfaces the removed keys
+(returned as `CacheRemovalResult` and carried in the events) and closes the
+TOCTOU race the count-then-delete pair had. Each op also accepts an optional
+`onRemoved` callback (`invalidate` shares the same contract with a no-arg
+callback).
+
+**The `onRemoved` contract (the load-bearing intent):** the callback runs
+**inside the same `sql.withTransaction` as the DELETE, before commit**. If it
+fails, the transaction rolls back (the delete is undone) and **no event is
+emitted** -- events fire via `Effect.tap` only after commit. This keeps the
+cache and the consumer's side effects atomic: a failed artifact cleanup leaves
+the cache entry in place rather than orphaning the artifact.
+
+**Error/requirement threading:** the callback's error `E` and requirements `R`
+propagate, so these methods return `Effect<..., CacheError | E, R>`. The
+`mapSqlError` helper (in `SqliteCacheLive.ts`) converts only `SqlError` and
+defects to `CacheError`, leaving the callback's `E` intact -- unlike the
+all-collapsing `wrapCacheError` used by the read/`set` paths.
+
+**Back-compat note:** `PruneResult` is now a type alias of
+`CacheRemovalResult`. The breaking part is that `prune` and `invalidateAll`
+became functions (call as `prune()` / `invalidateAll()`).
 
 ### Design Patterns Used
 
@@ -1226,9 +1274,11 @@ to prevent cross-test contamination.
 
 ### Potential Refactoring
 
-- **SqliteCacheLive error handling:** The repeated `catchAllDefect` +
-  `catchIf` pattern in every method could be extracted into a shared combinator
-  to reduce boilerplate.
+- **SqliteCacheLive error handling:** The callback-bearing mutations now share
+  the `mapSqlError` combinator (maps only `SqlError`/defects to `CacheError`,
+  preserving a caller's `E`). The read/`set` paths still use `wrapCacheError`,
+  which collapses every error to `CacheError`. These two combinators could be
+  unified so all methods route through one error-mapping helper.
 - **Resolver requirements threading:** Currently resolvers carry their
   requirements as a type parameter `R`, but `ConfigFileOptions.resolvers` uses
   `ConfigResolver<any>`. A more type-safe approach could thread requirements
@@ -1271,8 +1321,14 @@ to prevent cross-test contamination.
 ---
 
 **Document Status:** Current at 80% completeness. All major sections are
-populated from the actual implementation. Synced with `bug/taplo-validation`
-branch changes (JsonSchemaValidatorLive refactored to table-driven
+populated from the actual implementation. Synced with `feat/sqlite-prune`
+branch changes (SqliteCache bulk-removal ops `prune`/`invalidateByTag`/
+`invalidateAll` now return `CacheRemovalResult { count, keys }` via atomic
+`DELETE ... RETURNING key`, carry `keys` in their events, and accept an
+optional in-transaction `onRemoved` cleanup callback; `prune`/`invalidateAll`
+became functions; `mapSqlError` helper added -- see Decision 6). Prior sync
+covered `bug/taplo-validation` branch changes (JsonSchemaValidatorLive
+refactored to table-driven
 `PLACEMENT_RULES` with `checkSchemaConventions` walker replacing
 `checkMissingAdditionalProperties`; `x-taplo` keyword added to extension
 keywords; `loadAjv` wrapped with `Effect.tryPromise` for clear missing-peer

@@ -12,9 +12,10 @@ export const CacheEventPayload = Schema.Union(
 	Schema.TaggedStruct("InvalidatedByTag", {
 		tag: Schema.String,
 		count: Schema.Number,
+		keys: Schema.Array(Schema.String),
 	}),
-	Schema.TaggedStruct("InvalidatedAll", { count: Schema.Number }),
-	Schema.TaggedStruct("Pruned", { count: Schema.Number }),
+	Schema.TaggedStruct("InvalidatedAll", { count: Schema.Number, keys: Schema.Array(Schema.String) }),
+	Schema.TaggedStruct("Pruned", { count: Schema.Number, keys: Schema.Array(Schema.String) }),
 	Schema.TaggedStruct("Expired", { key: Schema.String }),
 );
 

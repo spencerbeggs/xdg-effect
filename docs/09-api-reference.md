@@ -174,6 +174,7 @@ Convenience layers that resolve the SQLite file path from the XDG cache/data dir
 | `ResolvedAppDirs` | Resolved directory paths (config, data, cache, state, runtime) |
 | `XdgPaths` | Raw XDG environment variable values |
 | `CacheEntry` | SQLite cache entry with value, TTL, tags |
+| `CacheRemovalResult` / `PruneResult` | Result of a bulk removal: `count` and removed `keys` (`PruneResult` is an alias) |
 | `CacheEvent` / `CacheEventPayload` | PubSub event types for cache observability |
 | `MigrationStatus` | Migration applied/pending status |
 
