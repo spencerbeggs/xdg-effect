@@ -154,8 +154,10 @@ export const makeSqliteCacheLiveImpl = (): Layer.Layer<SqliteCache, never, SqlCl
 				sql
 					.withTransaction(
 						Effect.gen(function* () {
-							yield* sql`DELETE FROM cache_entries WHERE key = ${key}`;
-							if (onRemoved) {
+							const removed = yield* sql`DELETE FROM cache_entries WHERE key = ${key} RETURNING key`;
+							// Only run the cleanup callback when an entry was actually removed, so
+							// `invalidate(key, cleanup)` does not fire cleanup for an absent key.
+							if (onRemoved && removed.length > 0) {
 								yield* onRemoved();
 							}
 						}),

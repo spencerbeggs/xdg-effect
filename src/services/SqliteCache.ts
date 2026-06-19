@@ -56,10 +56,12 @@ export interface SqliteCacheService {
 	 *
 	 * @remarks
 	 * When `onRemoved` is supplied it runs inside the same transaction as the
-	 * delete, before it commits. If the callback fails, the delete is rolled
-	 * back and no `Invalidated` event is emitted — use this to keep the cache
-	 * entry in lock-step with external side effects (e.g. deleting on-disk
-	 * artifacts the entry was tracking).
+	 * delete, before it commits, but only when an entry was actually removed —
+	 * if `key` is absent the delete affects no rows and `onRemoved` is skipped.
+	 * If the callback fails, the delete is rolled back and no `Invalidated`
+	 * event is emitted — use this to keep the cache entry in lock-step with
+	 * external side effects (e.g. deleting on-disk artifacts the entry was
+	 * tracking).
 	 */
 	readonly invalidate: <E = never, R = never>(
 		key: string,

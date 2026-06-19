@@ -194,7 +194,7 @@ const program = Effect.gen(function* () {
 
 `invalidateByTag` removes all entries whose `tags` array includes the given tag. This is useful when a shared dependency (an auth token, a database row, a remote resource) changes and all derived cache entries must be flushed together. It returns a `CacheRemovalResult` with the `count` and `keys` removed.
 
-Like `prune` and `invalidateAll`, `invalidateByTag` accepts an optional `onRemoved` callback that runs inside the delete transaction before commit. A failing callback rolls back the delete and suppresses the `InvalidatedByTag` event. `invalidate` accepts the same callback, taking no arguments since it removes a single known key.
+Like `prune` and `invalidateAll`, `invalidateByTag` accepts an optional `onRemoved` callback that runs inside the delete transaction before commit. A failing callback rolls back the delete and suppresses the `InvalidatedByTag` event. `invalidate` accepts the same callback, taking no arguments since it removes a single known key; it runs only when an entry was actually removed, so passing a key that is absent skips the callback.
 
 ## PubSub Events
 
