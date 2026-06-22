@@ -56,7 +56,7 @@
 		"types:check": "tsgo --noEmit"
 	},
 	"dependencies": {
-		"config-file-effect": "^0.2.2",
+		"config-file-effect": "^0.2.3",
 		"json-schema-effect": "^0.2.4"
 	},
 	"devDependencies": {
@@ -65,7 +65,7 @@
 		"@effect/platform-node": "catalog:silk",
 		"@effect/rpc": "catalog:silk",
 		"@effect/sql": "catalog:silk",
-		"@savvy-web/bundler": "^0.7.0",
+		"@savvy-web/bundler": "^0.8.0",
 		"@savvy-web/silk": "^1.2.0",
 		"@savvy-web/vitest": "^1.5.1",
 		"@types/node": "catalog:silk",
