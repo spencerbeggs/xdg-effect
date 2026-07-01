@@ -7,6 +7,12 @@ import { AppDirsLiveImpl } from "../layers/AppDirsLive.js";
 import { AppDirsTestImpl } from "../layers/AppDirsTest.js";
 import type { ResolvedAppDirs } from "../schemas/ResolvedAppDirs.js";
 
+/**
+ * Application-namespaced directory resolution with `ensure*` methods that
+ * create directories on demand.
+ *
+ * @public
+ */
 export interface AppDirsService {
 	readonly config: Effect.Effect<string, AppDirsError>;
 	readonly data: Effect.Effect<string, AppDirsError>;
@@ -21,6 +27,12 @@ export interface AppDirsService {
 	readonly ensure: Effect.Effect<ResolvedAppDirs, AppDirsError>;
 }
 
+/**
+ * Service tag for {@link AppDirsService}, resolving app-namespaced XDG
+ * directories with a 5-level precedence and on-demand directory creation.
+ *
+ * @public
+ */
 export class AppDirs extends Context.Tag("xdg-effect/AppDirs")<AppDirs, AppDirsService>() {
 	static Live = AppDirsLiveImpl;
 	static Test = AppDirsTestImpl;

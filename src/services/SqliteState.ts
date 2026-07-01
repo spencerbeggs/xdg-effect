@@ -10,6 +10,11 @@ import { SqliteStateTestImpl } from "../layers/SqliteStateTest.js";
 import { SqliteStateXdgLiveImpl } from "../layers/SqliteStateXdgLive.js";
 import type { MigrationStatus } from "../schemas/MigrationStatus.js";
 
+/**
+ * A single user-defined migration, applied in ascending `id` order.
+ *
+ * @public
+ */
 export interface StateMigration {
 	readonly id: number;
 	readonly name: string;
@@ -17,6 +22,12 @@ export interface StateMigration {
 	readonly down?: (client: SqlClient.SqlClient) => Effect.Effect<void, unknown>;
 }
 
+/**
+ * The migrations applied and rolled back by a {@link SqliteStateService.migrate}
+ * or {@link SqliteStateService.rollback} call.
+ *
+ * @public
+ */
 export interface MigrationResult {
 	readonly applied: ReadonlyArray<{
 		readonly id: number;
@@ -28,6 +39,11 @@ export interface MigrationResult {
 	}>;
 }
 
+/**
+ * Managed SQLite connection with a user-defined migration ledger.
+ *
+ * @public
+ */
 export interface SqliteStateService {
 	readonly client: SqlClient.SqlClient;
 	readonly migrate: Effect.Effect<MigrationResult, StateError>;
@@ -35,6 +51,12 @@ export interface SqliteStateService {
 	readonly status: Effect.Effect<ReadonlyArray<MigrationStatus>, StateError>;
 }
 
+/**
+ * Service tag for {@link SqliteStateService}, a managed SQLite connection
+ * with user-defined migrations.
+ *
+ * @public
+ */
 export class SqliteState extends Context.Tag("xdg-effect/SqliteState")<SqliteState, SqliteStateService>() {
 	static Live = makeSqliteStateLiveImpl;
 	static XdgLive = SqliteStateXdgLiveImpl;

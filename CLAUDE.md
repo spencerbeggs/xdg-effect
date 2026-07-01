@@ -15,9 +15,10 @@ xdg-effect extracted its ConfigFile and JSON Schema code into standalone
 packages. xdg-effect re-exports their public API for single-import
 convenience:
 
-- **config-file-effect** (0.2.0) -- ConfigFile, codecs (JSON, TOML,
-  Encrypted), resolvers, strategies, events, migrations, watcher
-- **json-schema-effect** (0.2.0) -- JsonSchemaExporter, JsonSchemaValidator,
+- **config-file-effect** (0.3.0) -- ConfigFile, codecs (JSON, TOML,
+  Encrypted), resolvers (UpwardWalk subpaths, SystemEtc, etc.), strategies,
+  events, migrations, watcher
+- **json-schema-effect** (0.3.0) -- JsonSchemaExporter, JsonSchemaValidator,
   JsonSchemaScaffolder, taplo/tombi helpers, JsonSchemaClass
 
 Import from `xdg-effect` for convenience or from the sibling packages
@@ -27,12 +28,18 @@ directly. Both work identically at runtime.
 
 | Service | Purpose |
 | ------- | ------- |
-| XdgResolver | XDG env var resolution via Effect `Config` |
-| AppDirs | App-namespaced directory resolution with 4-level precedence; `ensure*` methods create directories on demand |
+| XdgResolver | XDG env var resolution via Effect `Config`; also exposes `appData`/`localAppData` (`APPDATA`/`LOCALAPPDATA`) for native Windows paths |
+| AppDirs | App-namespaced directory resolution with 5-level precedence (override -> XDG env -> native -> fallbackDir -> `$HOME/.<ns>`); `native: true` enables the native tier (XDG wins over native; no-op on linux); `ensure*` methods create directories on demand |
 | XdgConfigResolver | ConfigResolver that looks for files in the XDG config directory (requires AppDirs) |
+| NativeConfigResolver | ConfigResolver for the OS-native config dir (macOS Application Support, Windows APPDATA); native-as-fallback, chain after XdgConfigResolver; requires `FileSystem \| XdgResolver`; no-op on linux |
 | XdgSavePath | Default save path resolver for config files in XDG config directory |
 | SqliteCache | KV cache with TTL, tags, PubSub observability |
 | SqliteState | Managed SQLite with user migrations |
+
+`nativeDirs` is a pure helper (`src/services/NativeDirs.ts`) returning the
+`NativeDirs` OS-native path mapping (macOS Application Support/Caches, Windows
+APPDATA/LOCALAPPDATA, `Option.none()` on linux). It backs both AppDirs native
+mode and NativeConfigResolver.
 
 ### Layer Access Pattern
 
@@ -56,6 +63,10 @@ XdgLive(appConfig)                      // XdgResolver | AppDirs
 XdgConfigLive({ app, config })          // XdgResolver | AppDirs | ConfigFileService<A>
 XdgConfigLive.toml({ namespace, filename, tag, schema })  // Preset: TOML codec
 XdgConfigLive.json({ namespace, filename, tag, schema })  // Preset: JSON codec
+XdgConfigLive.layered({ namespace, filename, tag, schema, codec, projectSubpaths?, native?, system? })
+                                        // Full project->user->system search chain
+                                        //   (UpwardWalk subpaths -> XdgConfigResolver
+                                        //   -> NativeConfigResolver -> SystemEtc); explicit codec
 XdgConfigLive.multi({ app, configs })   // Multiple config files, shared XdgLive
 XdgFullLive({ app, config, migrations }) // Full stack (XDG + config + SQLite)
 
@@ -77,11 +88,13 @@ SqliteState.Test({ migrations })        // In-memory SQLite
 
 ### Dependencies
 
-- **Runtime:** `config-file-effect`, `json-schema-effect`
+- **Runtime:** `config-file-effect` (^0.3.0), `json-schema-effect` (^0.3.0)
 - **Peer (required):** `@effect/platform`, `@effect/platform-node`, `effect`
 - **Peer (optional):** `@effect/sql`, `@effect/sql-sqlite-node` (only for
-  SqliteCache/SqliteState); `ajv` (only for JsonSchemaValidator, transitive
-  via json-schema-effect)
+  SqliteCache/SqliteState)
+- **Transitive:** `ajv` arrives automatically as a full runtime dependency
+  of json-schema-effect (needed only for JsonSchemaValidator); consumers do
+  not declare it
 
 ### Source Layout
 
@@ -91,10 +104,12 @@ src/
   errors/               # AppDirsError, CacheError, StateError, XdgError
   layers/               # XdgLive, XdgConfigLive, XdgFullLive, SqliteCache*Live,
                         #   SqliteState*Live, *Test layers, XdgResolverLive/Test
-  resolvers/            # XdgConfigResolver, XdgSavePath (bridges to config-file-effect)
+  resolvers/            # XdgConfigResolver, NativeConfigResolver, XdgSavePath
+                        #   (bridges to config-file-effect)
   schemas/              # AppDirsConfig, CacheEntry, CacheEvent, MigrationStatus,
                         #   ResolvedAppDirs, XdgPaths
-  services/             # XdgResolver, AppDirs, SqliteCache, SqliteState
+  services/             # XdgResolver, AppDirs, NativeDirs (pure helper),
+                        #   SqliteCache, SqliteState
 ```
 
 ### User Documentation
@@ -116,33 +131,34 @@ composition, XDG resolvers, or debugging dependency graph issues.
 ## Build Pipeline
 
 This project uses
-[@savvy-web/rslib-builder](https://github.com/savvy-web/rslib-builder) to
-produce dual build outputs via [Rslib](https://rslib.rs/):
+[@savvy-web/bundler](https://github.com/savvy-web/systems) (a `tsdown`-based
+zero-config bundler) to produce dual build outputs. The self-executing
+`savvy.build.ts` calls `build()` and runs against the `dev` or `prod` target:
 
 | Output | Directory | Purpose |
 | ------ | --------- | ------- |
-| Development | `dist/dev/` | Local development with source maps |
-| Production | `dist/npm/` | Published to npm and GitHub Packages |
+| Development | `dist/dev/pkg` | Local link target; `catalog:`/`workspace:` specifiers preserved |
+| Production | `dist/prod/<group>/pkg` | Publishable; specifiers resolved; emits API Extractor api-model |
 
 ### How `private: true` Works
 
 The source `package.json` is marked `"private": true` — **this is intentional
-and correct**. During the build, rslib-builder reads the `publishConfig` field
-and transforms the output `package.json`:
-
-- Sets `"private": false` based on `publishConfig.access`
-- Rewrites `exports` to point at compiled output
-- Strips `devDependencies`, `scripts`, `publishConfig`, and `devEngines`
-
-The `rslib.config.ts` `transform()` callback controls what gets removed. Never
-manually set `"private": false` in the source `package.json`.
+and correct**. Each build runs a manifest transform (after resolving
+`publishConfig.targets`) to produce the published `package.json`. The default
+transform strips build- and dev-only fields (`devDependencies`, `scripts`,
+`publishConfig`, `devEngines`) so the output is publishable. Never manually set
+`"private": false` in the source `package.json`. A custom `transform` in
+`savvy.build.ts` replaces the default (re-apply it via `defaultManifestTransform`
+if needed); the current build supplies only `meta.tsdoc` config.
 
 ### Publish Targets
 
-The `publishConfig.targets` array defines where packages are published:
+The `publishConfig.targets` map defines where packages are published; each
+distinct name becomes a byte-variant group written to `dist/prod/<group>/pkg`,
+with a `dist/prod/targets.json` binding consumed by the release step:
 
-- **GitHub Packages** — `https://npm.pkg.github.com/` (from `dist/npm/`)
-- **npm registry** — `https://registry.npmjs.org/` (from `dist/npm/`)
+- **npm registry** — `npm: true` (own name)
+- **GitHub Packages** — `github: "@spencerbeggs/xdg-effect"` (renamed group)
 
 Both targets publish with provenance attestation enabled.
 
@@ -164,14 +180,14 @@ installed source.
 
 | Package | Purpose | GitHub | Local Source |
 | ------- | ------- | ------ | ------------ |
-| rslib-builder | Build pipeline, dual output, package.json transform | [savvy-web/rslib-builder](https://github.com/savvy-web/rslib-builder) | `node_modules/@savvy-web/rslib-builder/` |
+| bundler | Build pipeline (tsdown), dual output, manifest transform | [savvy-web/systems](https://github.com/savvy-web/systems) | `node_modules/@savvy-web/bundler/` |
 | commitlint | Conventional commit + DCO enforcement | [savvy-web/commitlint](https://github.com/savvy-web/commitlint) | `node_modules/@savvy-web/commitlint/` |
 | changesets | Versioning, changelogs, release management | [savvy-web/changesets](https://github.com/savvy-web/changesets) | `node_modules/@savvy-web/changesets/` |
 | lint-staged | Pre-commit file linting via Biome | [savvy-web/lint-staged](https://github.com/savvy-web/lint-staged) | `node_modules/@savvy-web/lint-staged/` |
 | vitest | Vitest config factory with project support | [savvy-web/vitest](https://github.com/savvy-web/vitest) | `node_modules/@savvy-web/vitest/` |
 
-TypeScript configuration extends from rslib-builder:
-`@savvy-web/rslib-builder/tsconfig/ecma/lib.json`
+TypeScript configuration extends from the bundler:
+`@savvy-web/bundler/tsconfig/ecma.json`
 
 ## Commands
 
@@ -194,8 +210,7 @@ pnpm run test:coverage     # Run tests with v8 coverage report
 ```bash
 pnpm run build             # Build dev + prod outputs via Turbo
 pnpm run build:dev         # Build development output only
-pnpm run build:prod        # Build production/npm output only
-pnpm run build:inspect     # Inspect production build config (verbose)
+pnpm run build:prod        # Build production output only
 ```
 
 ### Running a Specific Test

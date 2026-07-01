@@ -8,7 +8,7 @@ import { AppDirs } from "../services/AppDirs.js";
  * @remarks
  * Combines the app's XDG config directory (from {@link AppDirs}) with the
  * provided `filename`. Intended for use as the `defaultPath` option in
- * {@link ConfigFileOptions} to enable {@link ConfigFileService.save}.
+ * `ConfigFileOptions` to enable `ConfigFileService.save`.
  *
  * @public
  */

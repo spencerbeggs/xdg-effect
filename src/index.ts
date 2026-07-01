@@ -90,13 +90,19 @@ export { StateError, StateErrorBase } from "./errors/StateError.js";
 export type { XdgEffectError } from "./errors/types.js";
 export { XdgError, XdgErrorBase } from "./errors/XdgError.js";
 // ── Layers (composites) ────────────────────────────────────────────────────
-export type { XdgConfigLiveOptions, XdgConfigMultiOptions, XdgConfigPresetOptions } from "./layers/XdgConfigLive.js";
+export type {
+	XdgConfigLayeredOptions,
+	XdgConfigLiveOptions,
+	XdgConfigMultiOptions,
+	XdgConfigPresetOptions,
+} from "./layers/XdgConfigLive.js";
 export { XdgConfigLive } from "./layers/XdgConfigLive.js";
 export type { XdgFullLiveOptions, XdgFullPresetOptions } from "./layers/XdgFullLive.js";
 export { XdgFullLive } from "./layers/XdgFullLive.js";
 export { XdgLive } from "./layers/XdgLive.js";
 export type { XdgResolverTestOptions } from "./layers/XdgResolverTest.js";
 // ── Resolvers ───────────────────────────────────────────────────────────────
+export { NativeConfigResolver } from "./resolvers/NativeConfigResolver.js";
 /** @deprecated Use XdgConfigResolver instead */
 export { XdgConfigResolver, XdgConfigResolver as XdgConfig } from "./resolvers/XdgConfigResolver.js";
 export { XdgSavePath } from "./resolvers/XdgSavePath.js";
@@ -110,6 +116,8 @@ export { XdgPaths } from "./schemas/XdgPaths.js";
 // ── Services ────────────────────────────────────────────────────────────────
 export type { AppDirsService } from "./services/AppDirs.js";
 export { AppDirs } from "./services/AppDirs.js";
+export type { NativeDirs } from "./services/NativeDirs.js";
+export { nativeDirs } from "./services/NativeDirs.js";
 export type {
 	CacheEntryMeta,
 	CacheRemovalResult,

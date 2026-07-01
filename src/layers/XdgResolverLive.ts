@@ -23,16 +23,22 @@ export const XdgResolverLiveImpl = (): Layer.Layer<XdgResolver> =>
 			cacheHome: optionalEnv("XDG_CACHE_HOME"),
 			stateHome: optionalEnv("XDG_STATE_HOME"),
 			runtimeDir: optionalEnv("XDG_RUNTIME_DIR"),
+			appData: optionalEnv("APPDATA"),
+			localAppData: optionalEnv("LOCALAPPDATA"),
 			home: requiredHome,
 			resolveAll: Effect.gen(function* () {
-				const [home, configHome, dataHome, cacheHome, stateHome, runtimeDir] = yield* Effect.all([
-					requiredHome,
-					optionalEnv("XDG_CONFIG_HOME"),
-					optionalEnv("XDG_DATA_HOME"),
-					optionalEnv("XDG_CACHE_HOME"),
-					optionalEnv("XDG_STATE_HOME"),
-					optionalEnv("XDG_RUNTIME_DIR"),
-				]);
+				const [home, configHome, dataHome, cacheHome, stateHome, runtimeDir, appData, localAppData] = yield* Effect.all(
+					[
+						requiredHome,
+						optionalEnv("XDG_CONFIG_HOME"),
+						optionalEnv("XDG_DATA_HOME"),
+						optionalEnv("XDG_CACHE_HOME"),
+						optionalEnv("XDG_STATE_HOME"),
+						optionalEnv("XDG_RUNTIME_DIR"),
+						optionalEnv("APPDATA"),
+						optionalEnv("LOCALAPPDATA"),
+					],
+				);
 				return new XdgPaths({
 					home,
 					configHome,
@@ -40,6 +46,8 @@ export const XdgResolverLiveImpl = (): Layer.Layer<XdgResolver> =>
 					cacheHome,
 					stateHome,
 					runtimeDir,
+					appData,
+					localAppData,
 				});
 			}),
 		}),

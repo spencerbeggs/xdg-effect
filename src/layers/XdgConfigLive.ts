@@ -6,9 +6,10 @@ import type {
 	ConfigFileService,
 	ConfigResolver,
 } from "config-file-effect";
-import { ConfigFile, FirstMatch, JsonCodec, TomlCodec, UpwardWalk } from "config-file-effect";
+import { ConfigFile, FirstMatch, JsonCodec, SystemEtc, TomlCodec, UpwardWalk } from "config-file-effect";
 import type { Context, Effect, Schema } from "effect";
 import { Layer } from "effect";
+import { NativeConfigResolver } from "../resolvers/NativeConfigResolver.js";
 import { XdgConfigResolver } from "../resolvers/XdgConfigResolver.js";
 import { XdgSavePath } from "../resolvers/XdgSavePath.js";
 import { AppDirsConfig } from "../schemas/AppDirsConfig.js";
@@ -31,7 +32,7 @@ export interface XdgConfigLiveOptions<A> {
  *
  * @remarks
  * Accepts an array of config specs that share a single {@link AppDirsConfig}.
- * Each config spec produces an independent {@link ConfigFileService} layer,
+ * Each config spec produces an independent `ConfigFileService` layer,
  * all composed under one shared `XdgLive` layer.
  *
  * @public
@@ -48,8 +49,8 @@ export interface XdgConfigMultiOptions {
  * @remarks
  * Reduces the full {@link XdgConfigLiveOptions} to 4 required concepts:
  * `namespace`, `filename`, `tag`, and `schema`. The preset hardcodes
- * {@link UpwardWalk} + {@link XdgConfigResolver} as resolvers,
- * {@link FirstMatch} as the strategy, and {@link XdgSavePath} as the
+ * `UpwardWalk` + `XdgConfigResolver` as resolvers,
+ * `FirstMatch` as the strategy, and `XdgSavePath` as the
  * default save path.
  *
  * @public
@@ -88,8 +89,71 @@ const makePreset = <A>(options: XdgConfigPresetOptions<A>, codec: ConfigCodec): 
 });
 
 /**
+ * Options for {@link XdgConfigLive.layered}.
+ *
+ * @remarks
+ * Wires the full project→user→system search chain: an `UpwardWalk` with
+ * `projectSubpaths` (dot-config convention), `XdgConfigResolver`, an
+ * optional `NativeConfigResolver` (native user config), and an optional
+ * `SystemEtc` (`/etc/<ns>`). Unlike the `.toml`/`.json` presets, the codec is
+ * explicit.
+ *
+ * @public
+ */
+export interface XdgConfigLayeredOptions<A> {
+	readonly namespace: string;
+	readonly filename: string;
+	readonly tag: Context.Tag<ConfigFileService<A>, ConfigFileService<A>>;
+	// biome-ignore lint/suspicious/noExplicitAny: Encoded type varies per schema; `any` allows all Schema.Struct shapes
+	readonly schema: Schema.Schema<A, any>;
+	readonly codec: ConfigCodec;
+	readonly projectSubpaths?: ReadonlyArray<string>;
+	readonly native?: boolean;
+	readonly system?: boolean;
+	// biome-ignore lint/suspicious/noExplicitAny: resolvers may carry heterogeneous requirements
+	readonly extraResolvers?: ReadonlyArray<ConfigResolver<any>>;
+	readonly validate?: (value: A) => Effect.Effect<A, ConfigError>;
+}
+
+/**
+ * Builds full {@link XdgConfigLiveOptions} from layered options.
+ *
+ * @internal
+ */
+const makeLayeredPreset = <A>(options: XdgConfigLayeredOptions<A>): XdgConfigLiveOptions<A> => ({
+	app: new AppDirsConfig({ namespace: options.namespace }),
+	config: {
+		tag: options.tag,
+		schema: options.schema,
+		codec: options.codec,
+		strategy: FirstMatch,
+		resolvers: [
+			...(options.extraResolvers ?? []),
+			UpwardWalk({ filename: options.filename, subpaths: options.projectSubpaths ?? [".", ".config"] }),
+			XdgConfigResolver({ filename: options.filename }),
+			...(options.native !== false
+				? [NativeConfigResolver({ namespace: options.namespace, filename: options.filename })]
+				: []),
+			...(options.system !== false ? [SystemEtc({ app: options.namespace, filename: options.filename })] : []),
+		],
+		defaultPath: XdgSavePath(options.filename),
+		...(options.validate != null ? { validate: options.validate } : {}),
+	},
+});
+
+/**
+ * Implementation backing the exported {@link XdgConfigLive} callable.
+ *
+ * @internal
+ */
+const _xdgConfigLive = <A>(
+	options: XdgConfigLiveOptions<A>,
+): Layer.Layer<XdgResolver | AppDirs | ConfigFileService<A>, never, FileSystem.FileSystem> =>
+	Layer.mergeAll(XdgLive(options.app), ConfigFile.Live(options.config));
+
+/**
  * Aggregate layer providing {@link XdgResolver}, {@link AppDirs}, and a
- * {@link ConfigFileService}.
+ * `ConfigFileService`.
  *
  * @remarks
  * Composes `XdgLive` (which provides XdgResolver + AppDirs) with
@@ -110,19 +174,14 @@ const makePreset = <A>(options: XdgConfigPresetOptions<A>, codec: ConfigCodec): 
  *
  * @public
  */
-const _xdgConfigLive = <A>(
-	options: XdgConfigLiveOptions<A>,
-): Layer.Layer<XdgResolver | AppDirs | ConfigFileService<A>, never, FileSystem.FileSystem> =>
-	Layer.mergeAll(XdgLive(options.app), ConfigFile.Live(options.config));
-
 export const XdgConfigLive = Object.assign(_xdgConfigLive, {
 	/**
 	 * Preset factory for TOML config files.
 	 *
 	 * @remarks
-	 * Hardcodes {@link TomlCodec}, {@link FirstMatch} strategy,
-	 * {@link UpwardWalk} + {@link XdgConfigResolver} resolvers, and
-	 * {@link XdgSavePath} for the default save path.
+	 * Hardcodes `TomlCodec`, `FirstMatch` strategy,
+	 * `UpwardWalk` + `XdgConfigResolver` resolvers, and
+	 * `XdgSavePath` for the default save path.
 	 *
 	 * @public
 	 */
@@ -134,9 +193,9 @@ export const XdgConfigLive = Object.assign(_xdgConfigLive, {
 	 * Preset factory for JSON config files.
 	 *
 	 * @remarks
-	 * Hardcodes {@link JsonCodec}, {@link FirstMatch} strategy,
-	 * {@link UpwardWalk} + {@link XdgConfigResolver} resolvers, and
-	 * {@link XdgSavePath} for the default save path.
+	 * Hardcodes `JsonCodec`, `FirstMatch` strategy,
+	 * `UpwardWalk` + `XdgConfigResolver` resolvers, and
+	 * `XdgSavePath` for the default save path.
 	 *
 	 * @public
 	 */
@@ -171,4 +230,19 @@ export const XdgConfigLive = Object.assign(_xdgConfigLive, {
 		const configLayers = options.configs.map((c) => ConfigFile.Live(c));
 		return Layer.mergeAll(xdg, ...configLayers);
 	},
+	/**
+	 * Preset factory for the full project→user→system search chain.
+	 *
+	 * @remarks
+	 * Wires `UpwardWalk` (with `projectSubpaths`, default `[".", ".config"]`),
+	 * `XdgConfigResolver`, `NativeConfigResolver` (when `native`
+	 * is not `false`), and `SystemEtc` (when `system` is not `false`), under
+	 * `FirstMatch`, with an explicit `codec`.
+	 *
+	 * @public
+	 */
+	layered: <A>(
+		options: XdgConfigLayeredOptions<A>,
+	): Layer.Layer<XdgResolver | AppDirs | ConfigFileService<A>, never, FileSystem.FileSystem> =>
+		_xdgConfigLive(makeLayeredPreset(options)),
 });

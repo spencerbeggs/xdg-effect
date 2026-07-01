@@ -32,8 +32,26 @@ export interface XdgFullPresetOptions<A> extends XdgConfigPresetOptions<A> {
 }
 
 /**
+ * Implementation backing the exported {@link XdgFullLive} callable.
+ *
+ * @internal
+ */
+const _xdgFullLive = <A>(
+	options: XdgFullLiveOptions<A>,
+): Layer.Layer<
+	XdgResolver | AppDirs | ConfigFileService<A> | SqliteCache | SqliteState,
+	never,
+	FileSystem.FileSystem | SqlClient.SqlClient
+> =>
+	Layer.mergeAll(
+		XdgConfigLive({ app: options.app, config: options.config }),
+		SqliteCache.Live(),
+		SqliteState.Live({ migrations: options.migrations }),
+	);
+
+/**
  * Aggregate layer providing the full xdg-effect stack:
- * {@link XdgResolver}, {@link AppDirs}, {@link ConfigFileService},
+ * {@link XdgResolver}, {@link AppDirs}, `ConfigFileService`,
  * {@link SqliteCache}, and {@link SqliteState}.
  *
  * @remarks
@@ -53,19 +71,6 @@ export interface XdgFullPresetOptions<A> extends XdgConfigPresetOptions<A> {
  *
  * @public
  */
-const _xdgFullLive = <A>(
-	options: XdgFullLiveOptions<A>,
-): Layer.Layer<
-	XdgResolver | AppDirs | ConfigFileService<A> | SqliteCache | SqliteState,
-	never,
-	FileSystem.FileSystem | SqlClient.SqlClient
-> =>
-	Layer.mergeAll(
-		XdgConfigLive({ app: options.app, config: options.config }),
-		SqliteCache.Live(),
-		SqliteState.Live({ migrations: options.migrations }),
-	);
-
 export const XdgFullLive = Object.assign(_xdgFullLive, {
 	/**
 	 * Preset factory for TOML config + SQLite cache/state.

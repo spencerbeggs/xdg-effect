@@ -80,6 +80,7 @@ npm install @effect/sql @effect/sql-sqlite-node
 | `XdgLive(config)` | `XdgResolver`, `AppDirs` | `FileSystem` | You need app-namespaced directories |
 | `XdgConfigLive(options)` | `XdgResolver`, `AppDirs`, `ConfigFileService` | `FileSystem` | You need config file loading |
 | `XdgConfigLive.toml(preset)` | Same as above | `FileSystem` | Common case with less boilerplate |
+| `XdgConfigLive.layered(preset)` | Same as above | `FileSystem` | You want project → user → system config search |
 | `XdgFullLive(options)` | All above + `SqliteCache`, `SqliteState` | `FileSystem`, `SqlClient` | You need the full stack |
 | `SqliteCache.XdgLive()` | `SqliteCache` | `AppDirs` | Cache with XDG-managed database path |
 | `SqliteState.XdgLive(options)` | `SqliteState` | `AppDirs` | State with XDG-managed database path |
@@ -89,8 +90,10 @@ npm install @effect/sql @effect/sql-sqlite-node
 ### XDG Services (this package)
 
 - **XdgResolver** — Read XDG environment variables through Effect's `Config` module
-- **AppDirs** — Resolve app-namespaced directories with 4-level precedence
+- **AppDirs** — Resolve app-namespaced directories with 5-level precedence
 - **XdgConfigResolver** — Resolver that finds config files in XDG directories
+- **NativeConfigResolver** — Resolver that falls back to platform-native config locations (macOS, Windows)
+- **nativeDirs** — Map an app namespace to its OS-native directories on macOS and Windows
 - **XdgSavePath** — Helper for saving config files to XDG paths
 - **SqliteCache** — Key/value cache with TTL, tag-based invalidation, PubSub events
 - **SqliteState** — Managed SQLite with migration tracking
@@ -114,15 +117,16 @@ npm install @effect/sql @effect/sql-sqlite-node
 
 ## Documentation
 
-1. [Getting Started](./docs/01-getting-started.md)
-2. [Resolving XDG Paths](./docs/02-resolving-xdg-paths.md)
-3. [XDG Config Files](./docs/03-xdg-config-files.md)
-4. [SQLite Cache](./docs/04-sqlite-cache.md)
-5. [SQLite State](./docs/05-sqlite-state.md)
-6. [Building a CLI](./docs/06-building-a-cli.md)
-7. [Testing](./docs/07-testing.md)
-8. [Error Handling](./docs/08-error-handling.md)
-9. [API Reference](./docs/09-api-reference.md)
+- [Getting Started](./docs/01-getting-started.md) — Install the packages and load your first config file.
+- [Resolving XDG Paths](./docs/02-resolving-xdg-paths.md) — XdgResolver and AppDirs for app-namespaced directory resolution.
+- [XDG Config Files](./docs/03-xdg-config-files.md) — Bridge into config-file-effect with XDG-aware resolvers and presets.
+- [SQLite Cache](./docs/04-sqlite-cache.md) — Key/value cache with TTL, tag invalidation and PubSub events.
+- [SQLite State](./docs/05-sqlite-state.md) — Managed SQLite database with migration tracking.
+- [Building a CLI](./docs/06-building-a-cli.md) — Compose the three packages into an XDG-compliant CLI tool.
+- [Testing](./docs/07-testing.md) — Scoped test layers with temp directories for every service.
+- [Error Handling](./docs/08-error-handling.md) — Typed error channel with structured context for each failure mode.
+- [API Reference](./docs/09-api-reference.md) — Every export, layer and option on the public surface.
+- [Platform-native config search](./docs/12-platform-native-search.md) — Native config locations, NativeConfigResolver, AppDirs native mode and the layered preset.
 
 ## License
 

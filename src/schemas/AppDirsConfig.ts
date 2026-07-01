@@ -1,5 +1,11 @@
 import { Option, Schema } from "effect";
 
+/**
+ * Configuration for {@link AppDirs.Live}: the app namespace, optional
+ * per-directory overrides, and whether to use native OS conventions.
+ *
+ * @public
+ */
 export class AppDirsConfig extends Schema.Class<AppDirsConfig>("AppDirsConfig")({
 	namespace: Schema.String,
 	fallbackDir: Schema.optionalWith(Schema.OptionFromUndefinedOr(Schema.String), {
@@ -17,4 +23,5 @@ export class AppDirsConfig extends Schema.Class<AppDirsConfig>("AppDirsConfig")(
 		),
 		{ default: () => Option.none() },
 	),
+	native: Schema.optionalWith(Schema.Boolean, { default: () => false }),
 }) {}

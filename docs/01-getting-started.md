@@ -127,7 +127,7 @@ Effect.runPromise(program.pipe(Effect.provide(XdgResolver.Live)));
 
 ## What's Next
 
-- [Resolving XDG Paths](./02-resolving-xdg-paths.md) — AppDirs service, 4-level precedence, directory creation
+- [Resolving XDG Paths](./02-resolving-xdg-paths.md) — AppDirs service, 5-level precedence, directory creation
 - [XDG Config Files](./03-xdg-config-files.md) — XdgConfigResolver resolver, XdgSavePath, XdgConfigLive
 - [SQLite Cache](./04-sqlite-cache.md) — TTL cache with tag invalidation
 - [SQLite State](./05-sqlite-state.md) — Managed database with migrations

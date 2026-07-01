@@ -33,7 +33,7 @@ class XdgResolver extends Context.Tag("xdg-effect/XdgResolver") {
 
 ### AppDirs
 
-Resolves app-namespaced directory paths using a 4-level precedence model.
+Resolves app-namespaced directory paths using a 5-level precedence model.
 
 ```typescript
 class AppDirs extends Context.Tag("xdg-effect/AppDirs") {

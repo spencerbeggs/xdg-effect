@@ -22,6 +22,7 @@ describe("XdgLive", () => {
 				namespace: "agg-test",
 				fallbackDir: Option.some(".agg-test"),
 				dirs: Option.none(),
+				native: false,
 			}),
 			NodeFileSystem.layer,
 		);
@@ -65,6 +66,7 @@ describe("XdgConfigLive", () => {
 						state: Option.none(),
 						runtime: Option.none(),
 					}),
+					native: false,
 				},
 				config: {
 					tag: TestConfig,

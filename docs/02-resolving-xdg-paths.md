@@ -16,7 +16,7 @@ The [XDG Base Directory Specification](https://specifications.freedesktop.org/ba
 
 `HOME` is the only required variable — all XDG paths are derived from it. `XDG_RUNTIME_DIR` has no fallback because it is assigned by the login session (for example, by systemd on Linux); it may not exist on all systems.
 
-When an XDG variable is not set, XDG-compliant applications are expected to fall back to the default path listed above. xdg-effect's `AppDirs` service resolves directories using a 4-level precedence model described below. Note that it does NOT apply the XDG default paths when variables are unset — see the design note in the AppDirs section for details.
+When an XDG variable is not set, XDG-compliant applications are expected to fall back to the default path listed above. xdg-effect's `AppDirs` service resolves directories using a 5-level precedence model described below. Note that it does NOT apply the XDG default paths when variables are unset — see the design note in the AppDirs section for details.
 
 > **Effect concept: Schema classes and Option** — Throughout this guide, constructors like `new AppDirsConfig({ namespace: "my-tool" })` use Effect Schema classes, which accept plain JavaScript objects. Fields typed as `Option<T>` represent values that may or may not be present: `Option.some(value)` means a value exists, and `Option.none()` means it is absent. You do not construct `Option` values directly when passing config — omit or pass `undefined` for optional fields and the library wraps them for you. See the [Effect Schema docs](https://effect.website/docs/schema/introduction) for a deeper introduction.
 
@@ -65,14 +65,15 @@ Use `resolveAll` to batch-read all paths in a single effect, which returns an `X
 
 `AppDirs` builds on `XdgResolver` to produce concrete, namespaced directory paths for your application. Instead of receiving `Option<string>` and computing fallbacks yourself, `AppDirs` applies a consistent precedence model and returns plain strings for every directory type (except `runtime`, which remains `Option<string>` because there is no universal fallback).
 
-### 4-level precedence
+### 5-level precedence
 
 For each directory type (config, data, cache, state), `AppDirs` resolves the path using this order:
 
 1. **Explicit override** — if `AppDirsConfig.dirs` contains a value for that directory (e.g., `{ config: "/etc/my-tool" }`), it is used as-is, bypassing XDG resolution entirely
 2. **XDG env var + namespace** — if the corresponding XDG variable is set, the namespace is appended (e.g., `$XDG_CONFIG_HOME/my-tool`)
-3. **Fallback directory under HOME** — if `AppDirsConfig.fallbackDir` is set, that path under `HOME` is used for all directory types (e.g., `$HOME/.config-alt` — note that the namespace is NOT appended at this level)
-4. **Default** — `$HOME/.my-tool`
+3. **Native directory** — if `AppDirsConfig.native` is `true` and the platform has an OS-native mapping, the native directory is used (e.g., `$HOME/Library/Application Support/my-tool` on macOS, `%APPDATA%\my-tool` on Windows). Skipped on Linux, where XDG is the native convention, so native mode is a no-op there
+4. **Fallback directory under HOME** — if `AppDirsConfig.fallbackDir` is set, that path under `HOME` is used for all directory types (e.g., `$HOME/.config-alt` — note that the namespace is NOT appended at this level)
+5. **Default** — `$HOME/.my-tool`
 
 > **Important:** Unlike the XDG spec, xdg-effect does NOT use per-type defaults (`~/.config`, `~/.local/share`, etc.) when XDG variables are unset. Instead, all directory types collapse to `$HOME/.<namespace>`. If you need XDG-spec-compliant defaults, use explicit `dirs` overrides in your `AppDirsConfig`.
 
@@ -201,7 +202,7 @@ const layer = XdgLive(
 );
 ```
 
-In this example, `config` and `data` always resolve to the given paths. `cache`, `state`, and `runtime` still follow the normal 4-level precedence using the `my-tool` namespace.
+In this example, `config` and `data` always resolve to the given paths. `cache`, `state`, and `runtime` still follow the normal 5-level precedence using the `my-tool` namespace.
 
 ---
 
