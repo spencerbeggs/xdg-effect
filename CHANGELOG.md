@@ -1,5 +1,30 @@
 # xdg-effect
 
+## 2.1.0
+
+### Features
+
+* [`95a1950`](https://github.com/spencerbeggs/xdg-effect/commit/95a1950f720d3d421b0bab8be4f55b09530fcdb7) ### Platform-native config search
+
+Add platform-native config discovery. A new `NativeConfigResolver` probes the
+OS-native config directory (`~/Library/Application Support/<app>` on macOS,
+`%APPDATA%\<app>` on Windows). `AppDirsConfig` gains a `native` option so
+`AppDirs` resolves native directories as the primary location (XDG env still
+wins; no-op on Linux). A new `XdgConfigLive.layered` preset wires the full
+project→user→system chain (dot-config walk, XDG, native, `/etc`), and a pure
+`nativeDirs` helper exposes the native path mappings. `XdgResolver` now also
+reads `APPDATA`/`LOCALAPPDATA`.
+
+### Dependencies
+
+* [`95a1950`](https://github.com/spencerbeggs/xdg-effect/commit/95a1950f720d3d421b0bab8be4f55b09530fcdb7) | Dependency | Type | Action | From | To |
+  \| -------------------- | -------------- | ------- | ------- | ------ |
+  \| ajv | devDependency | removed | ^8.20.0 | — |
+  \| ajv | peerDependency | removed | ^8.20.0 | — |
+  \| config-file-effect | dependency | updated | ^0.2.3 | ^0.3.0 |
+  \| json-schema-effect | dependency | updated | ^0.2.4 | ^0.3.0 |
+  \| @vitest-agent/plugin | devDependency | updated | ^1.1.2 | ^1.1.3 |
+
 ## 2.0.1
 
 ### Dependencies
