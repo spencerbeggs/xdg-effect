@@ -90,7 +90,7 @@ npm install @effect/sql @effect/sql-sqlite-node
 ### XDG Services (this package)
 
 - **XdgResolver** — Read XDG environment variables through Effect's `Config` module
-- **AppDirs** — Resolve app-namespaced directories with 4-level precedence
+- **AppDirs** — Resolve app-namespaced directories with 5-level precedence
 - **XdgConfigResolver** — Resolver that finds config files in XDG directories
 - **NativeConfigResolver** — Resolver that falls back to platform-native config locations (macOS, Windows)
 - **nativeDirs** — Map an app namespace to its OS-native directories on macOS and Windows

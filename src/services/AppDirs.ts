@@ -29,7 +29,7 @@ export interface AppDirsService {
 
 /**
  * Service tag for {@link AppDirsService}, resolving app-namespaced XDG
- * directories with a 4-level precedence and on-demand directory creation.
+ * directories with a 5-level precedence and on-demand directory creation.
  *
  * @public
  */
