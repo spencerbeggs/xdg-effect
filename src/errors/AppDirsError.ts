@@ -3,12 +3,12 @@ import { Data } from "effect";
 /**
  * Tagged error base for {@link AppDirsError}.
  *
- * @privateRemarks
+ * @remarks
  * Exported because TypeScript declaration bundling requires the base class to be
- * accessible when `AppDirsError` appears in public type signatures.
- * Consumers should use {@link AppDirsError} directly.
+ * accessible wherever `AppDirsError` appears in a public type signature; it carries
+ * no fields of its own. Prefer constructing and catching {@link AppDirsError} directly.
  *
- * @internal
+ * @public
  */
 export const AppDirsErrorBase = Data.TaggedError("AppDirsError");
 

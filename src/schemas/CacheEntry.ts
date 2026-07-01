@@ -1,5 +1,10 @@
 import { Schema } from "effect";
 
+/**
+ * A stored cache entry: its key, value, and bookkeeping fields.
+ *
+ * @public
+ */
 export class CacheEntry extends Schema.Class<CacheEntry>("CacheEntry")({
 	key: Schema.String,
 	value: Schema.Uint8ArrayFromSelf,

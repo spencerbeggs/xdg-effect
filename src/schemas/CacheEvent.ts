@@ -1,5 +1,11 @@
 import { Schema } from "effect";
 
+/**
+ * Discriminated union of cache lifecycle events published on
+ * {@link SqliteCacheService.events}.
+ *
+ * @public
+ */
 export const CacheEventPayload = Schema.Union(
 	Schema.TaggedStruct("Hit", { key: Schema.String }),
 	Schema.TaggedStruct("Miss", { key: Schema.String }),
@@ -19,6 +25,12 @@ export const CacheEventPayload = Schema.Union(
 	Schema.TaggedStruct("Expired", { key: Schema.String }),
 );
 
+/**
+ * A timestamped {@link CacheEventPayload} published on
+ * {@link SqliteCacheService.events}.
+ *
+ * @public
+ */
 export class CacheEvent extends Schema.Class<CacheEvent>("CacheEvent")({
 	timestamp: Schema.DateTimeUtc,
 	event: CacheEventPayload,

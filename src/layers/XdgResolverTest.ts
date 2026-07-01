@@ -7,6 +7,12 @@ import { XdgPaths } from "../schemas/XdgPaths.js";
 // biome-ignore lint/suspicious/noImportCycles: Test layer intentionally references its service tag
 import { XdgResolver } from "../services/XdgResolver.js";
 
+/**
+ * Fixed values to seed a scoped {@link XdgResolver.Test} layer with, in place
+ * of reading real environment variables.
+ *
+ * @public
+ */
 export interface XdgResolverTestOptions {
 	readonly home?: string;
 	readonly configHome?: string;
@@ -14,6 +20,8 @@ export interface XdgResolverTestOptions {
 	readonly cacheHome?: string;
 	readonly stateHome?: string;
 	readonly runtimeDir?: string;
+	readonly appData?: string;
+	readonly localAppData?: string;
 }
 
 const toOption = (value: string | undefined): Option.Option<string> =>
@@ -34,6 +42,8 @@ export const XdgResolverTestImpl = (options?: XdgResolverTestOptions): Layer.Lay
 			const cacheHome = toOption(options?.cacheHome);
 			const stateHome = toOption(options?.stateHome);
 			const runtimeDir = toOption(options?.runtimeDir);
+			const appData = toOption(options?.appData);
+			const localAppData = toOption(options?.localAppData);
 
 			return XdgResolver.of({
 				home: Effect.succeed(home),
@@ -42,7 +52,11 @@ export const XdgResolverTestImpl = (options?: XdgResolverTestOptions): Layer.Lay
 				cacheHome: Effect.succeed(cacheHome),
 				stateHome: Effect.succeed(stateHome),
 				runtimeDir: Effect.succeed(runtimeDir),
-				resolveAll: Effect.succeed(new XdgPaths({ home, configHome, dataHome, cacheHome, stateHome, runtimeDir })),
+				appData: Effect.succeed(appData),
+				localAppData: Effect.succeed(localAppData),
+				resolveAll: Effect.succeed(
+					new XdgPaths({ home, configHome, dataHome, cacheHome, stateHome, runtimeDir, appData, localAppData }),
+				),
 			});
 		}),
 	);

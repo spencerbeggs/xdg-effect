@@ -3,12 +3,12 @@ import { Data } from "effect";
 /**
  * Tagged error base for {@link StateError}.
  *
- * @privateRemarks
+ * @remarks
  * Exported because TypeScript declaration bundling requires the base class to be
- * accessible when `StateError` appears in public type signatures.
- * Consumers should use {@link StateError} directly.
+ * accessible wherever `StateError` appears in a public type signature; it carries
+ * no fields of its own. Prefer constructing and catching {@link StateError} directly.
  *
- * @internal
+ * @public
  */
 export const StateErrorBase = Data.TaggedError("StateError");
 

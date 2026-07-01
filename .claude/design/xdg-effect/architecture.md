@@ -3,9 +3,9 @@ status: current
 module: xdg-effect
 category: architecture
 created: 2026-04-20
-updated: 2026-06-19
-last-synced: 2026-06-19
-completeness: 80
+updated: 2026-07-01
+last-synced: 2026-07-01
+completeness: 82
 related: []
 dependencies: []
 ---
@@ -104,8 +104,10 @@ src/
 
 - Read `XDG_CONFIG_HOME`, `XDG_DATA_HOME`, `XDG_CACHE_HOME`,
   `XDG_STATE_HOME`, and `XDG_RUNTIME_DIR` as `Option<string>` values
+- Read the Windows `APPDATA` and `LOCALAPPDATA` variables as `Option<string>`
+  values (`appData`/`localAppData`) to feed native-path resolution
 - Read `HOME` as a required `string` (fails with `XdgError` if missing)
-- Provide `resolveAll` to batch-read all XDG paths into an `XdgPaths` schema
+- Provide `resolveAll` to batch-read all paths into an `XdgPaths` schema
 
 **Key interfaces/APIs:**
 
@@ -116,6 +118,8 @@ interface XdgResolverService {
   readonly cacheHome: Effect.Effect<Option.Option<string>>;
   readonly stateHome: Effect.Effect<Option.Option<string>>;
   readonly runtimeDir: Effect.Effect<Option.Option<string>>;
+  readonly appData: Effect.Effect<Option.Option<string>>;      // %APPDATA%
+  readonly localAppData: Effect.Effect<Option.Option<string>>; // %LOCALAPPDATA%
   readonly home: Effect.Effect<string, XdgError>;
   readonly resolveAll: Effect.Effect<XdgPaths, XdgError>;
 }
@@ -124,7 +128,7 @@ interface XdgResolverService {
 **Dependencies:**
 
 - Depends on: Effect `ConfigProvider` (for environment variable access)
-- Used by: AppDirs, XdgConfig resolver
+- Used by: AppDirs, XdgConfigResolver, NativeConfigResolver
 
 **Layer type:** `Layer.Layer<XdgResolver>` -- no requirements (environment
 variables come from the ambient `ConfigProvider`).
@@ -134,14 +138,18 @@ variables come from the ambient `ConfigProvider`).
 **Location:** `src/services/AppDirs.ts`, `src/layers/AppDirsLive.ts`
 
 **Purpose:** Given an application namespace, resolves concrete directory paths
-using a 4-level precedence system.
+using a 5-level precedence system.
 
 **Responsibilities:**
 
 - Resolve config, data, cache, state, and runtime directories for a named app
-- Apply 4-level precedence: explicit override > XDG env + namespace >
-  fallbackDir > `$HOME/.namespace`
-- Create all resolved directories on disk via `ensure`
+- Apply 5-level precedence: explicit override > XDG env + namespace > native
+  dir (when `native: true`) > fallbackDir > `$HOME/.namespace` (see Decision 4)
+- Optionally resolve OS-native directories when `AppDirsConfig.native` is set
+  (macOS `~/Library/Application Support/<ns>`, Windows `%APPDATA%\<ns>`); a
+  no-op on Linux where XDG is already native
+- Create all resolved directories on disk via `ensure` (and per-directory
+  `ensureConfig`/`ensureData`/`ensureCache`/`ensureState`)
 
 **Key interfaces/APIs:**
 
@@ -164,6 +172,29 @@ interface AppDirsService {
 
 **Layer type:** `Layer.Layer<AppDirs, never, XdgResolver | FileSystem>` --
 constructed via `AppDirsLive(config)` factory function taking `AppDirsConfig`.
+
+#### Component 2b: NativeDirs (native path helper)
+
+**Location:** `src/services/NativeDirs.ts`
+
+**Purpose:** The single source of truth for OS-native application directory
+paths. A pure function (`nativeDirs`) that performs no I/O and reads no
+environment -- callers supply `platform`, `home`, `namespace`, and, on Windows,
+`appData`/`localAppData`.
+
+**Load-bearing contract:** Both consumers of native paths -- the AppDirs native
+mode and `NativeConfigResolver` -- resolve through this one helper, so the OS
+mapping is defined in exactly one place. See `src/services/NativeDirs.ts` for
+the per-platform mapping (darwin `~/Library/Application Support` +
+`~/Library/Caches`; win32 `%APPDATA%`/`%LOCALAPPDATA%` with `~/AppData/...`
+fallbacks; linux/other -> `Option.none()`).
+
+**Key interface:** `nativeDirs(input) -> Option<NativeDirs>` where
+`NativeDirs = { config, data, cache, state }`. `Option.none()` on Linux and
+unrecognized platforms signals "no native override -- use XDG".
+
+**Dependencies:** None (pure). Used by: `AppDirsLive` (native mode) and
+`NativeConfigResolver`.
 
 #### Component 3: ConfigFile
 
@@ -413,20 +444,28 @@ as the only non-peer runtime dependency.
 
 #### Resolvers
 
-Interface `ConfigResolver<R>` (at `src/resolvers/ConfigResolver.ts`) with five
-built-in implementations:
+The `ConfigResolver<R>` interface and the platform-agnostic resolvers
+(`ExplicitPath`, `StaticDir`, `UpwardWalk`, `WorkspaceRoot`, `SystemEtc`) are
+owned by the sibling `config-file-effect` package and re-exported for
+convenience. xdg-effect contributes the resolvers that need XDG/AppDirs
+knowledge, all living in `src/resolvers/`:
 
 | Resolver | File | Requirements | Strategy |
 | -------- | ---- | ------------ | -------- |
-| `ExplicitPath` | `src/resolvers/ExplicitPath.ts` | FileSystem | Check if a specific path exists |
-| `StaticDir` | `src/resolvers/StaticDir.ts` | FileSystem | Check for filename in a known directory |
-| `UpwardWalk` | `src/resolvers/UpwardWalk.ts` | FileSystem | Walk up from cwd looking for filename |
-| `XdgConfig` | `src/resolvers/XdgConfig.ts` | FileSystem, AppDirs | Check in the XDG config directory |
-| `WorkspaceRoot` | `src/resolvers/WorkspaceRoot.ts` | FileSystem | Find monorepo root (pnpm-workspace.yaml or package.json workspaces) |
+| `XdgConfigResolver` | `src/resolvers/XdgConfigResolver.ts` | FileSystem, AppDirs | Check in the XDG config directory (formerly exported as `XdgConfig`, now a deprecated alias) |
+| `NativeConfigResolver` | `src/resolvers/NativeConfigResolver.ts` | FileSystem, XdgResolver | Check in the OS-native config directory as a fallback; returns none on Linux |
+| `XdgSavePath` | `src/resolvers/XdgSavePath.ts` | AppDirs | Default save-path resolver for writing config back to the XDG config dir |
 
-Each resolver returns `Effect<Option<string>, never, R>` -- errors are caught
+Every resolver returns `Effect<Option<string>, never, R>` -- errors are caught
 and treated as "not found". The `R` type parameter captures requirements so
 they flow through to the layer graph.
+
+`NativeConfigResolver` is native-as-fallback: chain it **after**
+`XdgConfigResolver` so an existing `~/.config/<app>` still wins over the native
+directory. It computes its path from the pure `nativeDirs` helper (see
+[Native path resolution](#component-2b-nativedirs-native-path-helper)) and
+probes only when that helper returns a mapping, so it is a no-op on Linux where
+XDG already owns the config path.
 
 #### Strategies
 
@@ -502,8 +541,10 @@ XdgResolverLive  AppDirsLive  ConfigFileLive  SqliteCacheLive  SqliteStateLive
 
 - `XdgLive(config)` = `XdgResolverLive` + `AppDirsLive(config)`, requires
   `FileSystem`
-- `XdgConfigLive(options)` = `XdgLive` + `makeConfigFileLive`, requires
-  `FileSystem`
+- `XdgConfigLive(options)` = `XdgLive` + `ConfigFile.Live`, requires
+  `FileSystem`. Presets `.toml`/`.json` (`UpwardWalk` + `XdgConfigResolver`
+  under `FirstMatch`), `.multi` (many configs sharing one `XdgLive`), and
+  `.layered` (full project -> user -> system chain, see Decision 7) build on it
 - `XdgFullLive(options)` = `XdgConfigLive` + `makeSqliteCacheLive` +
   `makeSqliteStateLive`, requires `FileSystem` + `SqlClient`
 
@@ -532,8 +573,8 @@ Effect `Schema.Class` definitions for structured data:
 
 | Schema | File | Purpose |
 | ------ | ---- | ------- |
-| `XdgPaths` | `src/schemas/XdgPaths.ts` | Resolved XDG directory paths (home required, others optional) |
-| `AppDirsConfig` | `src/schemas/AppDirsConfig.ts` | Configuration input for AppDirs (namespace, fallbackDir, per-dir overrides) |
+| `XdgPaths` | `src/schemas/XdgPaths.ts` | Resolved XDG directory paths plus Windows `appData`/`localAppData` (home required, others optional) |
+| `AppDirsConfig` | `src/schemas/AppDirsConfig.ts` | Configuration input for AppDirs (namespace, fallbackDir, per-dir overrides, `native` flag) |
 | `ResolvedAppDirs` | `src/schemas/ResolvedAppDirs.ts` | Concrete directory paths after resolution |
 | `CacheEntry` | `src/schemas/CacheEntry.ts` | Single cache entry with key, value (Uint8Array), TTL, tags |
 | `CacheEvent` | `src/schemas/CacheEvent.ts` | Tagged union of cache observability events |
@@ -623,22 +664,30 @@ support type parameters.
    - Cons: Loses type safety, only one ConfigFile per application
    - Why rejected: Unsafe and limiting.
 
-#### Decision 4: 4-level resolution precedence
+#### Decision 4: 5-level resolution precedence
 
-**Context:** Applications need flexibility in how directories are determined.
+**Context:** Applications need flexibility in how directories are determined,
+including opting into OS-native conventions on macOS and Windows.
 
 **Precedence (highest to lowest):**
 
 1. Explicit per-directory override (via `AppDirsConfig.dirs`)
 2. XDG environment variable + namespace (e.g., `$XDG_CONFIG_HOME/myapp`)
-3. Fallback directory under HOME (e.g., `$HOME/.config-alt`)
-4. Default: `$HOME/.namespace` (e.g., `$HOME/.myapp`)
+3. Native directory (only when `AppDirsConfig.native` is `true` and the
+   platform has a mapping; via `nativeDirs`)
+4. Fallback directory under HOME (e.g., `$HOME/.config-alt`)
+5. Default: `$HOME/.namespace` (e.g., `$HOME/.myapp`)
 
 **Why this order:** Explicit overrides give the consumer full control. XDG env
-vars are the standard mechanism. The fallback directory handles non-standard
-setups. The final default ensures the library always resolves to something
-concrete -- it never assumes XDG defaults unless the user explicitly sets the
-environment variables.
+vars are the standard mechanism and deliberately sit **above** the native tier
+-- an explicitly-set `XDG_CONFIG_HOME` stays authoritative even in native mode,
+so power users and containers keep control. Native paths slot in below XDG so
+that opting into `native: true` changes only the default location, not the
+override semantics. Native mode is a no-op on Linux (`nativeDirs` returns none),
+where XDG is already the native convention. The fallback directory handles
+non-standard setups, and the final default ensures the library always resolves
+to something concrete. `runtime` has no native mapping and continues to derive
+from `XDG_RUNTIME_DIR` only.
 
 #### Decision 5: PubSub for cache observability
 
@@ -689,6 +738,39 @@ all-collapsing `wrapCacheError` used by the read/`set` paths.
 **Back-compat note:** `PruneResult` is now a type alias of
 `CacheRemovalResult`. The breaking part is that `prune` and `invalidateAll`
 became functions (call as `prune()` / `invalidateAll()`).
+
+#### Decision 7: Two entry points for platform-native config search
+
+**Context:** macOS and Windows apps that follow platform guidance store config
+in native locations (`~/Library/Application Support`, `%APPDATA%`) rather than
+`~/.config`. Consumers need this behaviour in two distinct shapes: some want the
+native directory as the *primary* location for a namespace, others want to keep
+XDG primary but *also search* the native directory for an existing file.
+
+**The two entry points (both routed through the pure `nativeDirs` helper):**
+
+1. **Native-as-primary -- AppDirs native mode.** Setting `native: true` on
+   `AppDirsConfig` makes `AppDirs` resolve native directories directly, slotting
+   the native tier into the precedence below XDG env (Decision 4). This changes
+   where the app *writes*.
+2. **Native-as-fallback -- `NativeConfigResolver`.** Chained after
+   `XdgConfigResolver` in a resolver list, it only *reads*: it probes the native
+   directory for an existing file so a native config is discovered without
+   displacing an existing `~/.config/<app>`.
+
+**`XdgConfigLive.layered` preset:** wires the full project -> user -> system
+search chain under `FirstMatch` in one layer -- `UpwardWalk({ subpaths })`
+(dot-config project convention) -> `XdgConfigResolver` -> `NativeConfigResolver`
+(unless `native: false`) -> `SystemEtc` `/etc/<ns>` (unless `system: false`),
+with an explicit codec. `SystemEtc` and `UpwardWalk` subpaths come from
+`config-file-effect`. See `src/layers/XdgConfigLive.ts` for the exact chain and
+`XdgConfigLayeredOptions`.
+
+**Why two entry points instead of one:** discovery order (read) and default
+location (write) are genuinely different concerns. Folding them together would
+force a native-mode app to also change its search order, or a fallback-search
+app to change where it writes. Keeping the OS mapping in one pure helper
+(`nativeDirs`) means both paths stay consistent without sharing wiring.
 
 ### Design Patterns Used
 
@@ -788,11 +870,12 @@ No side effects beyond reading the `ConfigProvider`.
 
 **Responsibilities:**
 
-- Apply 4-level precedence to resolve concrete paths
+- Apply 5-level precedence to resolve concrete paths (including the optional
+  native tier)
 - Create directories on demand via `ensure`
 
 **Components:** `AppDirs` service, `AppDirsLive` layer, `AppDirsConfig` schema,
-`ResolvedAppDirs` schema
+`ResolvedAppDirs` schema, `nativeDirs` helper
 
 **Communication:** Depends on XdgResolver for raw path values. Uses FileSystem
 for directory creation in `ensure`.
@@ -919,6 +1002,7 @@ Schema.decode   Schema.decode
 3. For each directory type (config, data, cache, state), applies precedence:
    - Check explicit override from `AppDirsConfig.dirs`
    - Check XDG env value + namespace
+   - Check native dir from `nativeDirs` (only when `config.native` is true)
    - Check fallbackDir
    - Default to `$HOME/.namespace`
 4. Returns `ResolvedAppDirs` with concrete path strings
@@ -979,6 +1063,7 @@ class AppDirsConfig {
     state: Option<string>;
     runtime: Option<string>;
   }>;
+  native: boolean; // default false; opt into OS-native dirs (Decision 4)
 }
 
 // Output: resolved from environment + config
@@ -989,6 +1074,8 @@ class XdgPaths {
   cacheHome: Option<string>;
   stateHome: Option<string>;
   runtimeDir: Option<string>;
+  appData: Option<string>;      // %APPDATA% (Windows)
+  localAppData: Option<string>; // %LOCALAPPDATA% (Windows)
 }
 
 // Output: concrete directory paths
@@ -1018,7 +1105,8 @@ class ResolvedAppDirs {
         |
         v
 [AppDirsLive(AppDirsConfig)]
-  4-level precedence resolution
+  5-level precedence resolution
+  (native tier active when config.native === true)
         |
         v
 [ResolvedAppDirs]
@@ -1030,8 +1118,12 @@ class ResolvedAppDirs {
 
 #### Flow 2: Config file discovery and loading
 
+The resolver chain is consumer-defined. The `XdgConfigLive.layered` preset wires
+the full project -> user -> system chain shown below; the `.toml`/`.json`
+presets use the shorter `UpwardWalk -> XdgConfigResolver` pair (see Decision 7).
+
 ```text
-[Resolver Chain: ExplicitPath -> XdgConfig -> UpwardWalk -> WorkspaceRoot]
+[Resolver Chain: UpwardWalk -> XdgConfigResolver -> NativeConfigResolver -> SystemEtc]
         |
    (for each resolver)
         v
@@ -1199,8 +1291,8 @@ collected into `JsonSchemaValidationError`.
 
 - XdgResolver: reads env vars correctly, returns Option.none for unset vars,
   fails on missing HOME
-- AppDirs: 4-level precedence, ensure creates directories, namespace
-  formatting
+- AppDirs: 5-level precedence (including native mode with XDG winning over
+  native), ensure creates directories, namespace formatting
 - ConfigFile: JSON and TOML loading, FirstMatch and LayeredMerge strategies,
   write round-trip, discover across multiple resolvers
 - JsonSchemaExporter: schema generation, $ref inlining, cleanSchema pass, $id
@@ -1305,6 +1397,8 @@ to prevent cross-test contamination.
 - `docs/09-testing.md` -- Testing patterns with ConfigProvider and temp dirs
 - `docs/10-error-handling.md` -- Tagged error types and recovery strategies
 - `docs/11-api-reference.md` -- Complete API surface reference
+- `docs/12-platform-native-search.md` -- Native config resolver, AppDirs native
+  mode, and the `XdgConfigLive.layered` full-chain preset
 
 **Package Documentation:**
 
@@ -1320,9 +1414,16 @@ to prevent cross-test contamination.
 
 ---
 
-**Document Status:** Current at 80% completeness. All major sections are
-populated from the actual implementation. Synced with `feat/sqlite-prune`
-branch changes (SqliteCache bulk-removal ops `prune`/`invalidateByTag`/
+**Document Status:** Current at 82% completeness. All major sections are
+populated from the actual implementation. Synced with `feat/config-strategies`
+branch changes (Cycle 2 of platform-native config search): the pure `nativeDirs`
+helper (single source of OS-native path knowledge), `NativeConfigResolver`
+(native-as-fallback, chained after `XdgConfigResolver`), AppDirs native mode
+(`AppDirsConfig.native`, 5-level precedence with XDG winning over native -- see
+Decision 4), the `XdgConfigLive.layered` full-chain preset, and `XdgResolver`
+now exposing `appData`/`localAppData` (see Decision 7). Prior sync covered
+`feat/sqlite-prune` branch changes (SqliteCache bulk-removal ops
+`prune`/`invalidateByTag`/
 `invalidateAll` now return `CacheRemovalResult { count, keys }` via atomic
 `DELETE ... RETURNING key`, carry `keys` in their events, and accept an
 optional in-transaction `onRemoved` cleanup callback; `prune`/`invalidateAll`
@@ -1342,6 +1443,12 @@ aggregate layer usage extensively).
 
 **Next Steps:**
 
+- Reconcile pre-existing drift from the ConfigFile / JSON Schema extraction:
+  Components 3, 4, and 4b (ConfigFile, JsonSchemaExporter, JsonSchemaValidator)
+  and the `codecs/`, `strategies/`, `helpers/` entries in the Source Layout
+  describe code that now lives in the sibling `config-file-effect` /
+  `json-schema-effect` packages, not this repo's `src/`. This drift predates the
+  native-config work and was left untouched in this pass.
 - Add performance design doc covering SQLite tuning and cache efficiency
 - Add observability design doc covering PubSub event patterns and monitoring
 - Create implementation plan for config file watching feature

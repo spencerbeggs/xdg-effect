@@ -1,6 +1,6 @@
 import { existsSync, rmSync } from "node:fs";
 import { NodeFileSystem } from "@effect/platform-node";
-import { Effect, Layer, Option } from "effect";
+import { ConfigProvider, Effect, Layer, Option } from "effect";
 import { describe, expect, it } from "vitest";
 import { AppDirsConfig } from "../src/schemas/AppDirsConfig.js";
 import { AppDirs } from "../src/services/AppDirs.js";
@@ -233,6 +233,96 @@ describe("AppDirs", () => {
 		// Cleanup
 
 		rmSync(testDir, { recursive: true, force: true });
+	});
+
+	it("native mode uses macOS Application Support for config", async () => {
+		const original = Object.getOwnPropertyDescriptor(process, "platform");
+		Object.defineProperty(process, "platform", { value: "darwin", configurable: true });
+		try {
+			const config = new AppDirsConfig({
+				namespace: "test-app",
+				native: true,
+				fallbackDir: Option.none(),
+				dirs: Option.none(),
+			});
+			const result = await Effect.runPromise(
+				Effect.provide(
+					Effect.withConfigProvider(
+						Effect.gen(function* () {
+							const appDirs = yield* AppDirs;
+							return yield* appDirs.resolveAll;
+						}),
+						ConfigProvider.fromMap(new Map([["HOME", "/Users/me"]])),
+					),
+					makeTestLayer(config),
+				),
+			);
+			expect(result.config).toBe("/Users/me/Library/Application Support/test-app");
+			expect(result.cache).toBe("/Users/me/Library/Caches/test-app");
+		} finally {
+			if (original) Object.defineProperty(process, "platform", original);
+		}
+	});
+
+	it("native mode lets XDG_CONFIG_HOME win over the native dir", async () => {
+		const original = Object.getOwnPropertyDescriptor(process, "platform");
+		Object.defineProperty(process, "platform", { value: "darwin", configurable: true });
+		try {
+			const config = new AppDirsConfig({
+				namespace: "test-app",
+				native: true,
+				fallbackDir: Option.none(),
+				dirs: Option.none(),
+			});
+			const result = await Effect.runPromise(
+				Effect.provide(
+					Effect.withConfigProvider(
+						Effect.gen(function* () {
+							const appDirs = yield* AppDirs;
+							return yield* appDirs.resolveAll;
+						}),
+						ConfigProvider.fromMap(
+							new Map([
+								["HOME", "/Users/me"],
+								["XDG_CONFIG_HOME", "/xdg/config"],
+							]),
+						),
+					),
+					makeTestLayer(config),
+				),
+			);
+			expect(result.config).toBe("/xdg/config/test-app");
+		} finally {
+			if (original) Object.defineProperty(process, "platform", original);
+		}
+	});
+
+	it("native mode is a no-op on linux", async () => {
+		const original = Object.getOwnPropertyDescriptor(process, "platform");
+		Object.defineProperty(process, "platform", { value: "linux", configurable: true });
+		try {
+			const config = new AppDirsConfig({
+				namespace: "test-app",
+				native: true,
+				fallbackDir: Option.none(),
+				dirs: Option.none(),
+			});
+			const result = await Effect.runPromise(
+				Effect.provide(
+					Effect.withConfigProvider(
+						Effect.gen(function* () {
+							const appDirs = yield* AppDirs;
+							return yield* appDirs.resolveAll;
+						}),
+						ConfigProvider.fromMap(new Map([["HOME", "/home/me"]])),
+					),
+					makeTestLayer(config),
+				),
+			);
+			expect(result.config).toBe("/home/me/.test-app");
+		} finally {
+			if (original) Object.defineProperty(process, "platform", original);
+		}
 	});
 });
 

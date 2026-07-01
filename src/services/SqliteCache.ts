@@ -10,6 +10,11 @@ import { SqliteCacheXdgLiveImpl } from "../layers/SqliteCacheXdgLive.js";
 import type { CacheEntry } from "../schemas/CacheEntry.js";
 import type { CacheEvent } from "../schemas/CacheEvent.js";
 
+/**
+ * Metadata for a cache entry, without its stored value.
+ *
+ * @public
+ */
 export interface CacheEntryMeta {
 	readonly key: string;
 	readonly contentType: string;
@@ -42,6 +47,11 @@ export interface CacheRemovalResult {
  */
 export type PruneResult = CacheRemovalResult;
 
+/**
+ * SQLite-backed key/value cache with TTL, tags, and PubSub observability.
+ *
+ * @public
+ */
 export interface SqliteCacheService {
 	readonly get: (key: string) => Effect.Effect<Option.Option<CacheEntry>, CacheError>;
 	readonly set: (params: {
@@ -108,6 +118,12 @@ export interface SqliteCacheService {
 	readonly events: PubSub.PubSub<CacheEvent>;
 }
 
+/**
+ * Service tag for {@link SqliteCacheService}, a SQLite-backed cache with TTL,
+ * tags, and PubSub observability.
+ *
+ * @public
+ */
 export class SqliteCache extends Context.Tag("xdg-effect/SqliteCache")<SqliteCache, SqliteCacheService>() {
 	static Live = makeSqliteCacheLiveImpl;
 	static XdgLive = SqliteCacheXdgLiveImpl;

@@ -5,17 +5,21 @@ import type { AppDirsConfig } from "../schemas/AppDirsConfig.js";
 import { ResolvedAppDirs } from "../schemas/ResolvedAppDirs.js";
 // biome-ignore lint/suspicious/noImportCycles: layer intentionally co-locates with its service tag
 import { AppDirs } from "../services/AppDirs.js";
+import type { NativeDirs } from "../services/NativeDirs.js";
+import { nativeDirs } from "../services/NativeDirs.js";
 import { XdgResolver } from "../services/XdgResolver.js";
 
 type DirName = "config" | "data" | "cache" | "state";
 
 /**
- * Resolves a single directory path using 4-level precedence:
+ * Resolves a single directory path using 5-level precedence:
  *
  * 1. Explicit override (highest priority)
  * 2. XDG env var + namespace (e.g., $XDG_CONFIG_HOME/myapp)
- * 3. fallbackDir (e.g., $HOME/.myapp) — all dir types share this path
- * 4. $HOME/.\<namespace\> (lowest priority)
+ * 3. Native dir (when `native: true` and the platform has a mapping,
+ *    e.g., macOS `~/Library/Application Support/myapp`)
+ * 4. fallbackDir (e.g., $HOME/.myapp) — all dir types share this path
+ * 5. $HOME/.\<namespace\> (lowest priority)
  *
  * Note: Unlike the XDG spec, this does NOT use per-type defaults
  * (~/.config, ~/.local/share, etc.) when XDG vars are unset.
@@ -26,6 +30,7 @@ const resolveDir = (
 	_dirName: DirName,
 	xdgValue: Option.Option<string>,
 	namespace: string,
+	nativeValue: Option.Option<string>,
 	fallbackDir: Option.Option<string>,
 	override: Option.Option<string>,
 	home: string,
@@ -34,10 +39,12 @@ const resolveDir = (
 		Option.match(xdgValue, {
 			onSome: (xdg) => `${xdg}/${namespace}`,
 			onNone: () =>
-				Option.match(fallbackDir, {
-					onSome: (fb) => `${home}/${fb}`,
-					onNone: () => `${home}/.${namespace}`,
-				}),
+				Option.getOrElse(nativeValue, () =>
+					Option.match(fallbackDir, {
+						onSome: (fb) => `${home}/${fb}`,
+						onNone: () => `${home}/.${namespace}`,
+					}),
+				),
 		}),
 	);
 
@@ -63,18 +70,33 @@ export const AppDirsLiveImpl = (
 
 			const resolveAllDirs = Effect.gen(function* () {
 				const home = yield* resolver.home;
-				const [configHome, dataHome, cacheHome, stateHome, runtimeDir] = yield* Effect.all([
+				const [configHome, dataHome, cacheHome, stateHome, runtimeDir, appData, localAppData] = yield* Effect.all([
 					resolver.configHome,
 					resolver.dataHome,
 					resolver.cacheHome,
 					resolver.stateHome,
 					resolver.runtimeDir,
+					resolver.appData,
+					resolver.localAppData,
 				]);
+
+				const appDataStr = Option.getOrUndefined(appData);
+				const localAppDataStr = Option.getOrUndefined(localAppData);
+				const nativeOpt: Option.Option<NativeDirs> = config.native
+					? nativeDirs({
+							platform: globalThis.process?.platform ?? "linux",
+							home,
+							namespace: config.namespace,
+							...(appDataStr !== undefined ? { appData: appDataStr } : {}),
+							...(localAppDataStr !== undefined ? { localAppData: localAppDataStr } : {}),
+						})
+					: Option.none();
 
 				const configPath = resolveDir(
 					"config",
 					configHome,
 					config.namespace,
+					Option.map(nativeOpt, (n) => n.config),
 					config.fallbackDir,
 					getDirOverride(config.dirs, "config"),
 					home,
@@ -83,6 +105,7 @@ export const AppDirsLiveImpl = (
 					"data",
 					dataHome,
 					config.namespace,
+					Option.map(nativeOpt, (n) => n.data),
 					config.fallbackDir,
 					getDirOverride(config.dirs, "data"),
 					home,
@@ -91,6 +114,7 @@ export const AppDirsLiveImpl = (
 					"cache",
 					cacheHome,
 					config.namespace,
+					Option.map(nativeOpt, (n) => n.cache),
 					config.fallbackDir,
 					getDirOverride(config.dirs, "cache"),
 					home,
@@ -99,6 +123,7 @@ export const AppDirsLiveImpl = (
 					"state",
 					stateHome,
 					config.namespace,
+					Option.map(nativeOpt, (n) => n.state),
 					config.fallbackDir,
 					getDirOverride(config.dirs, "state"),
 					home,

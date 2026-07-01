@@ -41,6 +41,8 @@ describe("XdgResolver", () => {
 		expect(Option.isOption(result.cacheHome)).toBe(true);
 		expect(Option.isOption(result.stateHome)).toBe(true);
 		expect(Option.isOption(result.runtimeDir)).toBe(true);
+		expect(Option.isOption(result.appData)).toBe(true);
+		expect(Option.isOption(result.localAppData)).toBe(true);
 	});
 
 	it("respects a custom ConfigProvider", async () => {
@@ -96,6 +98,47 @@ describe("XdgResolver", () => {
 			}).pipe(Effect.withConfigProvider(provider), Effect.provide(XdgResolver.Live)),
 		);
 		expect(Exit.isFailure(result)).toBe(true);
+	});
+
+	it("returns Option for appData and localAppData", async () => {
+		const result = await run(
+			Effect.gen(function* () {
+				const resolver = yield* XdgResolver;
+				return {
+					appData: yield* resolver.appData,
+					localAppData: yield* resolver.localAppData,
+				};
+			}),
+		);
+		expect(Option.isOption(result.appData)).toBe(true);
+		expect(Option.isOption(result.localAppData)).toBe(true);
+	});
+
+	it("reads APPDATA/LOCALAPPDATA from the ConfigProvider", async () => {
+		const provider = ConfigProvider.fromMap(
+			new Map([
+				["HOME", "/custom/home"],
+				["APPDATA", "C:\\Users\\me\\AppData\\Roaming"],
+				["LOCALAPPDATA", "C:\\Users\\me\\AppData\\Local"],
+			]),
+		);
+		const result = await Effect.runPromise(
+			Effect.provide(
+				Effect.withConfigProvider(
+					Effect.gen(function* () {
+						const resolver = yield* XdgResolver;
+						return {
+							appData: yield* resolver.appData,
+							localAppData: yield* resolver.localAppData,
+						};
+					}),
+					provider,
+				),
+				XdgResolver.Live,
+			),
+		);
+		expect(Option.getOrThrow(result.appData)).toBe("C:\\Users\\me\\AppData\\Roaming");
+		expect(Option.getOrThrow(result.localAppData)).toBe("C:\\Users\\me\\AppData\\Local");
 	});
 });
 
