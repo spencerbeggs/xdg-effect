@@ -1,5 +1,15 @@
 # xdg-effect
 
+## 2.1.1
+
+### Bug Fixes
+
+* Force release to fix peer issues.
+
+### Patch Changes
+
+Thanks to [@spencerbeggs](https://github.com/spencerbeggs) for their contributions!
+
 ## 2.1.0
 
 ### Features
