@@ -1,5 +1,11 @@
 # xdg-effect
 
+> [!CAUTION]
+> **This package is deprecated and no longer maintained.**
+> All functionality has been migrated to [`@effected/xdg`](https://www.npmjs.com/package/@effected/xdg)
+> Source code live in the [Effected monorepo](https://github.com/spencerbeggs/effected).
+> No further releases, fixes or security patches will be published here.
+
 [![npm version](https://img.shields.io/npm/v/xdg-effect)](https://www.npmjs.com/package/xdg-effect)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 [![TypeScript 6.0](https://img.shields.io/badge/TypeScript-6.0-3178c6)](https://www.typescriptlang.org/)
